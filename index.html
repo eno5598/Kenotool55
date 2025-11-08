@@ -84,6 +84,18 @@
     <div class="row" style="margin-top:6px">
       <div style="flex:2 1 180px"><label>Download-Fortschritt</label><progress id="dlProg" value="0" max="1" style="display:none"></progress></div>
     </div>
+
+    <!-- Alternative URL und Proxy-Optionen für Auto-Download -->
+    <div class="row" style="margin-top:6px">
+      <div style="flex:2 1 180px">
+        <label>Alternative URL (optional)</label>
+        <input type="text" id="customUrl" placeholder="https://example.com/archive.zip">
+      </div>
+      <div style="flex:1 1 180px">
+        <label>Proxy (optional)</label>
+        <input type="text" id="customProxy" placeholder="https://corsproxy.io/?">
+      </div>
+    </div>
   </div>
 
   <!-- 🎛️ Einstellungen -->
@@ -268,6 +280,16 @@
       </div>
       <div class="hint">Beispiel A=1, B=70, Breite=10 ⇒ Segmente 1-10, 11-20, … 61-70.</div>
     </div>
+  </div>
+
+  <!-- 📊 Statistik -->
+  <div class="panel" id="p-stats" style="border-left:6px solid var(--accent2)">
+    <div class="ph"><span class="emoji">📊</span><h2 style="margin:0">Statistik</h2></div>
+    <div class="row">
+      <div><button id="calcStats" class="secondary">Statistik berechnen</button></div>
+    </div>
+    <div id="statsInfo" class="status" style="display:none;margin-top:6px"></div>
+    <div id="statsChart" style="margin-top:10px; display:flex; align-items:flex-end; gap:2px; height:150px; border:1px solid var(--muted); padding:4px; overflow-x:auto"></div>
   </div>
 
   <!-- 🧠 Tipp prüfen -->
@@ -486,6 +508,19 @@
     const blob = new Blob(chunks);
     return { arrayBuffer: await blob.arrayBuffer(), total: total||received, res };
   }
+
+  // Versuche, eine der gegebenen URLs herunterzuladen. Es wird der erste erfolgreiche Versuch zurückgegeben.
+  async function attemptDownload(urls, onProgress){
+    let lastError = null;
+    for(const url of urls){
+      try{
+        const result = await fetchWithProgress(url, onProgress);
+        result.usedUrl = url;
+        return result;
+      }catch(e){ lastError = e; }
+    }
+    throw lastError || new Error('Download fehlgeschlagen');
+  }
   async function autoLoadOfficialArchive(){
     const prog = $("#dlProg");
     const st = $("#statusTop");
@@ -493,30 +528,46 @@
     $("#dlProg").value=0; $("#dlProg").max=1;
     text(st, "Verbinde zur Quelle…");
     try{
-      const { arrayBuffer, total, res } = await fetchWithProgress(OFFICIAL_ZIP_URL, ({received, total})=>{
+      // Ermittle Basis-URL und Proxy
+      const custom = $("#customUrl").value.trim();
+      const baseUrl = custom || OFFICIAL_ZIP_URL;
+      const proxy = $("#customProxy").value.trim();
+      // Liste möglicher Download-URLs: benutzerdefinierter Proxy, Original, öffentliche CORS-Proxies
+      const candidates = [];
+      if(proxy){ candidates.push(proxy + baseUrl); }
+      // direkte URL zuletzt, damit Proxy bevorzugt wird
+      candidates.push(baseUrl);
+      // bekannte kostenlose Proxies (encode URI bei bedarf)
+      candidates.push('https://corsproxy.io/?' + encodeURIComponent(baseUrl));
+      candidates.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(baseUrl));
+      candidates.push('https://thingproxy.freeboard.io/fetch/' + baseUrl);
+      // Fortschrittsanzeige (wird jedes Mal aktualisiert)
+      const { arrayBuffer, res, usedUrl } = await attemptDownload(candidates, ({received, total})=>{
         if(total>0) { prog.value = received/total; text(st, `Lade Archiv… ${(100*received/total).toFixed(0)}%`); }
         else { prog.value = Math.min(1, prog.value + 0.02); text(st, `Lade Archiv… ${received.toLocaleString()} Bytes`); }
       });
+      // Speichere ETag/Last-Modified für Info
       const meta = {
         etag: res?.headers?.get?.("ETag") || null,
         lm: res?.headers?.get?.("Last-Modified") || null,
-        savedAt: Date.now()
+        savedAt: Date.now(),
+        used: usedUrl
       };
       try{ localStorage.setItem(ARCHIVE_META_KEY, JSON.stringify(meta)); }catch{}
       text(st, "Entpacke ZIP…");
       if(!window.JSZip) throw new Error("JSZip fehlt (CDN)");
       const zip = await JSZip.loadAsync(arrayBuffer);
-      const candidates=[];
+      const candidates2=[];
       zip.forEach((path, entry)=>{
         const p=path.toLowerCase();
         if(p.endsWith(".csv") || p.endsWith(".txt")){
           const score=(/\bkeno\b/.test(p)?3:0)+(/\barchiv\b/.test(p)?2:0)+(p.endsWith(".csv")?1:0);
-          candidates.push({path,entry,score,size:entry._dataUncompressedSize||0});
+          candidates2.push({path,entry,score,size:entry._dataUncompressedSize||0});
         }
       });
-      if(!candidates.length) throw new Error("Keine CSV/TXT im ZIP gefunden (Quelle geändert?)");
-      candidates.sort((a,b)=> b.score-b.score || b.size-b.size || (a.path<b.path?-1:1));
-      const target=candidates[0];
+      if(!candidates2.length) throw new Error("Keine CSV/TXT im ZIP gefunden (Quelle geändert?)");
+      candidates2.sort((a,b)=> b.score-b.score || b.size-b.size || (a.path<b.path?-1:1));
+      const target=candidates2[0];
       text(st, `Lese: ${target.path}`);
       let raw="";
       try{ raw = await target.entry.async("string"); }
@@ -527,7 +578,7 @@
     }catch(e){
       $("#dlProg").style.display="none";
       const hint = (String(e?.message||e).includes("TypeError")||String(e?.message||e).includes("Failed to fetch"))
-        ? " (Hinweis: CORS des Anbieters kann Auto-Laden im Browser blockieren. Dann bitte oben manuell laden oder über einen kleinen Proxy/Server holen.)"
+        ? " (Hinweis: CORS-Fehler: Versuche einen Proxy oder lade manuell)"
         : "";
       text($("#statusTop"), "Auto-Laden fehlgeschlagen: "+(e?.message||e)+hint);
     }
@@ -892,6 +943,48 @@
     for(const g of g_hotGroups) if(g.every(v=>set.has(v))) hits.push(g);
     return hits;
   }
+
+  /* ===================== Statistik ===================== */
+  // Berechnet die Häufigkeit jedes Wertes im Bereich [A,B]
+  function computeFrequency(A,B){
+    const n=B-A+1;
+    const freq=Array(n).fill(0);
+    for(const draw of g_draws){
+      for(const v of draw){
+        if(v>=A && v<=B){
+          freq[v-A]++;
+        }
+      }
+    }
+    return freq;
+  }
+  // Zeigt Statistik-Informationen und eine einfache Balkengrafik an
+  function showStats(){
+    if(!g_draws.length){ alert('Bitte zuerst Archiv laden.'); return; }
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const freq=computeFrequency(A,B);
+    const maxFreq=Math.max(...freq, 1);
+    const info=[];
+    info.push(`Ziehungen: ${g_draws.length}`);
+    info.push(`Ziehungsgröße: ${g_drawSize}`);
+    info.push(`Bereich: ${A}-${B}`);
+    $("#statsInfo").innerHTML = info.join('<br>');
+    $("#statsInfo").style.display="";
+    const chart=$("#statsChart");
+    chart.innerHTML="";
+    // Jeder Balken hat fixe Breite. Überlauf wird scrollbar.
+    const barWidth=4;
+    for(let i=0;i<freq.length;i++){
+      const bar=document.createElement('div');
+      bar.style.width=barWidth+'px';
+      bar.style.height=(freq[i]/maxFreq*100)+'%';
+      bar.style.background='var(--accent)';
+      bar.title = (A+i) + ': ' + freq[i];
+      bar.style.marginRight='1px';
+      chart.appendChild(bar);
+    }
+  }
+  $("#calcStats").addEventListener('click', showStats);
 
   /* ===================== Generieren (Worker mit Budget/Warm-up) ===================== */
   function buildDrawBits(A,B){
