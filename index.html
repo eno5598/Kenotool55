@@ -51,6 +51,12 @@
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--muted);border-radius:999px;padding:4px 6px}
   .chip .val{min-width:18px;text-align:center}
   .chip button{padding:4px 8px;border-radius:999px;font-weight:800;line-height:1}
+
+  /* Bereichsregel-Map */
+  .range-map{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .range-seg{flex:1 1 50px;min-width:60px;background:var(--muted);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:center;line-height:1.2}
+  .range-seg .seg-label{font-weight:bold;display:block}
+  .range-seg .seg-details{font-size:10px;color:#9ca3af;display:block}
 </style>
 </head>
 <body>
@@ -162,7 +168,11 @@
     </label>
     <div id="hotBox" style="display:none">
       <div class="row">
-        <div><label>Rückblick Ziehungen</label><input type="number" id="hotWindow" value="500" min="50" max="50000"></div>
+        <div>
+          <label>Rückblick Ziehungen</label>
+          <!-- Anzeige der Anzahl der Ziehungen im Archiv. Wird nach dem Laden aktualisiert. -->
+          <div id="hotWindowDisplay" class="status" style="padding:4px;min-width:80px;">0</div>
+        </div>
         <div><label>Gruppengröße</label>
           <select id="hotK">
             <option value="2" selected>2 (Paare)</option>
@@ -211,26 +221,18 @@
     <div class="ph"><span class="emoji">🧮</span><h2 style="margin:0">Kombinationen generieren</h2></div>
     <div class="row">
       <div><label>Wieviele Ergebnisse</label><input type="number" id="want" value="10" min="1" max="2000"></div>
-      <div><label>Max. Versuche (Basis, Normal)</label><input type="number" id="tries" value="60000" min="1000" step="1000"></div>
       <div><label>Seed</label><input type="number" id="seed" value="1" min="0"></div>
       <div>
-        <label>Suche-Stufe</label>
-        <select id="genLevel">
-          <option value="normal" selected>Normal</option>
-          <option value="medium">Mittel</option>
-          <option value="hard">Hard</option>
+        <label>Zeitlimit</label>
+        <select id="genTime">
+          <option value="2">≈ 2&nbsp;min</option>
+          <option value="5" selected>≈ 5&nbsp;min</option>
+          <option value="10">≈ 10&nbsp;min</option>
+          <option value="15">≈ 15&nbsp;min</option>
+          <option value="30">≈ 30&nbsp;min</option>
+          <option value="max">Maximales Limit</option>
         </select>
-        <div id="genHardWrap" class="hint" style="display:none;margin-top:6px">
-          Hard-Zeit:
-          <select id="genHardBudget">
-            <option value="2">≈ 2 min</option>
-            <option value="5" selected>≈ 5 min</option>
-            <option value="10">≈ 10 min</option>
-            <option value="15">≈ 15 min</option>
-            <option value="30">≈ 30 min</option>
-            <option value="max">Maximum</option>
-          </select>
-        </div>
+        <div class="hint">Nur relevant bei Zufall/Hot‑Paare/Frequenz</div>
       </div>
     </div>
     <div class="row" style="margin-top:10px">
@@ -248,16 +250,17 @@
       <div>
         <label>Generator-Modus</label>
         <select id="genMode">
-          <option value="random" selected>Zufall (wie bisher)</option>
+          <option value="random" selected>Zufall (kein Muster)</option>
           <option value="freq">Frequenz-basiert (häufige Zahlen bevorzugen)</option>
-          <option value="hotpairs">Hot-Paare (Top-Paare erzwingen/gewichten)</option>
+          <option value="hotpairs">Hot-Paare (Top-Paare bevorzugen/erzwingen)</option>
         </select>
-        <div class="hint">Gilt nur wenn <b>kein Muster</b> genutzt wird.</div>
+        <div class="hint">Gilt nur, wenn <b>kein Muster</b> genutzt wird.</div>
       </div>
       <div id="hotPairsBox" style="display:none">
-        <label>Hot-Paare Optionen</label>
+        <label>Hot-Paare Einstellungen</label>
         <div class="row">
-          <div><label>Fenster (Ziehungen)</label><input type="number" id="hpWindow" value="500" min="50" max="50000"></div>
+          <!-- Fenster-Anzeige ersetzt das Eingabefeld. Es zeigt die Archivgröße an und ist nicht editierbar. -->
+          <div><label>Fenster (Ziehungen)</label><div id="hpWindowDisplay" class="status" style="padding:4px;min-width:80px">0</div></div>
           <div><label>Top-N Paare</label><input type="number" id="hpTopN" value="50" min="5" max="2000"></div>
           <div><label>Mind. Paar-Treffer</label><input type="number" id="hpMinPairs" value="1" min="0" max="5"></div>
           <div><label>Gewichtung</label>
@@ -286,6 +289,7 @@
       <div class="hint">Beispiel A=1, B=70, Breite=10 ⇒ Segmente 1-10, 11-20, … 61-70.</div>
       <!-- Dynamisch generierte Zusammenfassung der Bereichsregel -->
       <div id="rangeSummary" class="hint" style="margin-top:4px"></div>
+      <div id="rangeMap" class="range-map"></div>
     </div>
   </div>
 
@@ -300,26 +304,6 @@
     <div id="statsList" class="status" style="display:none;margin-top:6px"></div>
   </div>
 
-  <!-- 🎯 Mehrfach-Varianten -->
-  <!--
-    Dieses Panel ermöglicht die Erstellung mehrerer voneinander unterschiedlicher Tippvarianten.
-    Die Varianten werden so generiert, dass sie möglichst viele unterschiedliche Zahlen abdecken,
-    um die Wahrscheinlichkeit eines Treffers über mehrere Tipps zu erhöhen. Standard sind 6 Varianten.
-  -->
-  <div class="panel" id="p-multi" style="border-left:6px solid var(--accent)">
-    <div class="ph"><span class="emoji">🎯</span><h2 style="margin:0">Mehrfach‑Varianten</h2></div>
-    <div class="row">
-      <div>
-        <label>Anzahl Varianten</label>
-        <input type="number" id="multiCount" value="6" min="2" max="20">
-      </div>
-      <div style="flex:1 1 180px;display:flex;align-items:flex-end">
-        <button id="makeMulti" class="secondary">Varianten generieren</button>
-      </div>
-    </div>
-    <div id="multiInfo" class="status" style="display:none;margin-top:6px"></div>
-    <div id="multiResults" class="results"></div>
-  </div>
 
   <!-- 🤖 Agent Mode -->
   <!--
@@ -331,7 +315,23 @@
     <div class="ph"><span class="emoji">🤖</span><h2 style="margin:0">Agent‑Modus</h2></div>
     <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
     <div class="row" style="margin-top:6px">
-      <button id="agentGo" class="primary">Agent starten</button>
+      <div>
+        <label>Strategie</label>
+        <select id="agentStrategy">
+          <option value="topfreq" selected>Häufigste Zahlen</option>
+          <option value="toppairs">Häufigste Paare</option>
+          <option value="coverage">Abdeckung maximieren</option>
+          <option value="hotgroups">Hot-Gruppen</option>
+          <option value="random">Zufall</option>
+        </select>
+      </div>
+      <div>
+        <label>Ergebnisse</label>
+        <input type="number" id="agentCount" value="3" min="1" max="20">
+      </div>
+      <div style="flex:1 1 180px;display:flex;align-items:flex-end">
+        <button id="agentGo" class="primary">Agent starten</button>
+      </div>
     </div>
     <div id="agentInfo" class="status" style="display:none;margin-top:6px"></div>
     <div id="agentResults" class="results"></div>
@@ -488,6 +488,11 @@
 
     try{ localStorage.setItem(CACHE_KEY, JSON.stringify({draws:g_draws, drawSize:g_drawSize, savedAt:Date.now(), source:sourceLabel||""})); }catch{}
     text($("#statusTop"), `Archiv geladen: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize}) · ${detected}${sourceLabel?` · Quelle: ${sourceLabel}`:""}`);
+    // Aktualisiere die Anzeige für Rückblick‑Ziehungen (Hot‑Gruppen) und Hot‑Paare
+    const hotDisplay = document.getElementById('hotWindowDisplay');
+    if(hotDisplay) hotDisplay.textContent = g_draws.length.toString();
+    const hpDisp = document.getElementById('hpWindowDisplay');
+    if(hpDisp) hpDisp.textContent = g_draws.length.toString();
   }
   async function handleAnyFile(file){
     if(!file) return;
@@ -530,6 +535,11 @@
     g_draws=[]; g_drawSize=0;
     text($("#statusTop"), "Archiv gelöscht. Bitte Datei erneut laden.");
     $("#results").innerHTML=""; $("#resultStatus").style.display="none";
+    // Aktualisiere Hot‑Gruppen- und Hot‑Paare-Anzeigen nach dem Löschen
+    const hotDisplayDel = document.getElementById('hotWindowDisplay');
+    if(hotDisplayDel) hotDisplayDel.textContent = '0';
+    const hpDispDel = document.getElementById('hpWindowDisplay');
+    if(hpDispDel) hpDispDel.textContent = '0';
   });
 
   // Fetch with progress for auto-load
@@ -648,6 +658,11 @@
           const ts=obj.savedAt?new Date(obj.savedAt):new Date();
           const src=obj.source?` · Quelle: ${obj.source}`:"";
           text($("#statusTop"), `Archiv aus Browser geladen: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize}) · gespeichert am ${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}${src}`);
+          // Anzeige für Rückblick-Ziehungen aktualisieren
+          const hotDisplayInit = document.getElementById('hotWindowDisplay');
+          if(hotDisplayInit) hotDisplayInit.textContent = g_draws.length.toString();
+          const hpDispInit = document.getElementById('hpWindowDisplay');
+          if(hpDispInit) hpDispInit.textContent = g_draws.length.toString();
         }
       }
     }catch{}
@@ -825,16 +840,18 @@
   /* ===================== Hard-UIs sichtbar/unsichtbar ===================== */
   function toggleHardUIs(){
     $("#hotHardWrap").style.display = ($("#searchLevel").value==="hard") ? "" : "none";
-    $("#genHardWrap").style.display = ($("#genLevel").value==="hard") ? "" : "none";
+    // Das Generator‑Zeitlimit wird über #genTime gewählt; eine separate Hard‑Wrap‑UI ist nicht mehr erforderlich.
   }
   $("#searchLevel").addEventListener("change", ()=>{ toggleHardUIs(); if($("#useHotGroups").checked) recomputeHotGroups(); });
   $("#hotHardBudget").addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
-  $("#genLevel").addEventListener("change", toggleHardUIs);
 
   /* ===================== Hot-Gruppen (inkl. k=5 Maximum 2-Pass) ===================== */
   function toggleHotBox(){ const on=$("#useHotGroups").checked; $("#hotBox").style.display=on?"":"none"; text($("#hotInfo"), on?"bereit":"inaktiv"); }
   $("#useHotGroups").addEventListener("change", ()=>{ toggleHotBox(); if($("#useHotGroups").checked) recomputeHotGroups(); });
-  ["hotWindow","hotK","hotTopN","hotMode"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); }); });
+  ["hotK","hotTopN","hotMode"].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
+  });
   $("#hotStart").addEventListener("click", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
 
   function hardBudgetSeconds(sel){
@@ -1023,21 +1040,27 @@
     info.push(`Bereich: ${A}-${B}`);
     $("#statsInfo").innerHTML = info.join('<br>');
     $("#statsInfo").style.display="";
-    // Statistikliste: Top-Zahlen mit Häufigkeit und Anteil
+    // Statistikliste: Top-Zahlen und Top-Paare
     const listEl = $("#statsList");
     const sumCounts = freq.reduce((a,b)=>a+b,0) || 1;
-    // Paare {num, count}
-    const freqPairs = [];
+    // Top-Einzelzahlen
+    const freqPairsArr = [];
     for(let i=0;i<freq.length;i++){
-      freqPairs.push({ num: A+i, count: freq[i] });
+      freqPairsArr.push({ num: A+i, count: freq[i] });
     }
-    freqPairs.sort((a,b)=> b.count - a.count || a.num - b.num);
-    const top = freqPairs.slice(0, Math.min(15, freqPairs.length));
-    const lines = top.map(it => {
+    freqPairsArr.sort((a,b)=> b.count - a.count || a.num - b.num);
+    const topNums = freqPairsArr.slice(0, Math.min(10, freqPairsArr.length));
+    const lines = topNums.map(it => {
       const pct = (it.count / sumCounts * 100).toFixed(2);
       return `${it.num}: ${it.count}× (${pct}%)`;
     });
-    listEl.innerHTML = lines.join('<br>');
+    // Top-Paare berechnen
+    const topPairs = computeTopPairsRange(A,B, 5);
+    const pairLines = topPairs.map(it => {
+      const [a,b] = it.pair;
+      return `${a}-${b}: ${it.count}×`;
+    });
+    listEl.innerHTML = '<b>Top-Zahlen:</b><br>' + (lines.join('<br>')) + '<br><br><b>Top-Paare:</b><br>' + (pairLines.join('<br>'));
     listEl.style.display = '';
   }
   $("#calcStats").addEventListener('click', showStats);
@@ -1270,11 +1293,17 @@
           $("#results").innerHTML=""; $("#results").appendChild(frag);
           const elapsed=(performance.now()-t0)/1000;
           const mode = ($("#usePattern").checked ? "Muster" : "Zufall");
-          const lvl = ($("#genLevel").value||"normal");
-          const hardNote = (lvl==="hard") ? ` · Ziel: ${($("#genHardBudget").value==="5"?"~5min":$("#genHardBudget").value==="10"?"~10min":"Maximum")}` : "";
+          const timeSel = $("#genTime").value||"5";
+          let timeNote = '';
+          if(timeSel !== 'max'){
+            const mins = parseInt(timeSel,10);
+            timeNote = ` · Zeitlimit: ≈ ${mins} min`;
+          } else {
+            timeNote = ` · Zeitlimit: kein Limit`;
+          }
           $("#resultStatus").style.display="";
           $("#resultStatus").textContent =
-            `Ergebnisse: ${out.length}/${$("#want").value} · Modus: ${mode} · Stufe: ${lvl}${hardNote}\n`+
+            `Ergebnisse: ${out.length}/${$("#want").value} · Modus: ${mode}${timeNote}\n`+
             `Dauer: ${elapsed.toFixed(2)}s · Archiv: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize})`;
           scrollToNode(document.getElementById("p-results"));
         }
@@ -1299,33 +1328,34 @@
     const Ssize=parseInt($("#kenoType").value,10), usePat=$("#usePattern").checked;
     const hotOn=$("#useHotGroups").checked, hotMode=($("#hotMode")?$("#hotMode").value:"require");
     const hotGroups = (hotOn ? g_hotGroups : []);
-    const level = $("#genLevel").value||"normal";
-    const hardBudget = (level==="hard") ? hardBudgetSecondsGen($("#genHardBudget").value) : 0;
+    // Ersetze die alte Versuchs-/Stufenlogik durch ein einheitliches Zeitlimit. Der Generator verwendet nun immer
+    // 'hard' als Suchstrategie mit budgetSec, das aus der Auswahl #genTime abgeleitet wird.
+    const level = 'hard';
+    const budgetSec = hardBudgetSecondsGen($("#genTime").value);
     const params = {
       A,B,S:Ssize,maxOv,
       drawsBits: buildDrawBits(A,B),
       hotOn, hotMode, hotGroups,
       want:+$("#want").value,
       level,
-      budgetSec: hardBudget,
+      budgetSec,
       seed:(+$("#seed").value)>>>0
     };
     const genModeUI = $("#genMode").value || "random";
     if(!usePat){
       params.strategy = genModeUI;
+      // Für Hot‑Paare: verwende immer das komplette Archiv als Fenster (drawsWindow). Die Eingabe hpWindow entfällt.
       if(genModeUI === "hotpairs"){
-        params.hpWindow = +($("#hpWindow").value||500);
         params.hpTopN = +($("#hpTopN").value||50);
         params.hpMinPairs = +($("#hpMinPairs").value||1);
         params.hpWeight = $("#hpWeight").value || "soft";
-        const fromIdx = Math.max(0, g_draws.length - params.hpWindow);
-        params.drawsWindow = g_draws.slice(fromIdx).map(d => d.filter(v => v>=params.A && v<=params.B));
+        params.drawsWindow = g_draws.map(d => d.filter(v => v>=params.A && v<=params.B));
       }
+      // Für Frequenzmodus: verwende ebenfalls das komplette Archiv
       if(genModeUI === "freq"){
-        const fw = Math.max(100, +($("#hpWindow").value||500));
-        const fromIdx = Math.max(0, g_draws.length - fw);
-        params.drawsWindow = g_draws.slice(fromIdx).map(d => d.filter(v => v>=params.A && v<=params.B));
+        params.drawsWindow = g_draws.map(d => d.filter(v => v>=params.A && v<=params.B));
       }
+      // Bereichsregeln
       params.rangeRulesOn = $("#useRangeRules").checked;
       if(params.rangeRulesOn){
         params.segSize = Math.max(2, +($("#segSize").value||10));
@@ -1337,7 +1367,6 @@
       params.strategy='pattern';
       params.gaps = g_pattern.slice();
     }
-    if(!usePat){
       params.mode='random';
     }
     $("#genInfo").textContent = `Starte… (Modus: ${params.mode==='pattern'?'Muster':'Zufall'}, S=${Ssize}, Bereich ${A}–${B}, maxOv ≤ ${maxOv}, Stufe=${level}${level==='hard'?(params.budgetSec===Infinity?' · Maximum':' · Zielzeit ~'+(params.budgetSec/60)+'min'):''})`;
@@ -1558,6 +1587,31 @@
     if(segs > limit) lines.push(`… weitere Segmente (${segs - limit} weitere)`);
     // Neue Darstellung als HTML mit Zeilenumbrüchen
     summaryEl.innerHTML = lines.map(l => l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
+    // Aktualisiere die visuelle Karte der Bereichssegmente
+    const mapEl = document.getElementById('rangeMap');
+    if(mapEl){
+      // Zeige Karte nur, wenn Bereichsregeln aktiv und nicht zu viele Segmente
+      if(!$("#useRangeRules").checked || segs > 24){
+        mapEl.innerHTML = '';
+      } else {
+        mapEl.innerHTML = '';
+        for(let i=0; i<segs; i++){
+          const start = A + i * size;
+          const end = Math.min(B, start + size - 1);
+          const segDiv = document.createElement('div');
+          segDiv.className = 'range-seg';
+          const label = document.createElement('span');
+          label.className = 'seg-label';
+          label.textContent = `${start}-${end}`;
+          const detail = document.createElement('span');
+          detail.className = 'seg-details';
+          detail.textContent = `${min}–${max}`;
+          segDiv.appendChild(label);
+          segDiv.appendChild(detail);
+          mapEl.appendChild(segDiv);
+        }
+      }
+    }
   }
   // Reagiere auf Änderungen der Eingabefelder im Bereichsregeln-Panel
   ["segSize","segMin","segMax","rangeFrom","rangeTo"].forEach(id=>{
@@ -1639,101 +1693,7 @@
     }
     return true;
   }
-  // Handler zur Generierung mehrerer Varianten
-  const btnMakeMulti = document.getElementById('makeMulti');
-  if(btnMakeMulti){
-    btnMakeMulti.addEventListener('click', function(){
-      if(!g_draws.length){ alert('Bitte zuerst Archiv laden'); return; }
-      let count = parseInt(document.getElementById('multiCount')?.value || '6', 10);
-      if(isNaN(count) || count < 2) count = 2;
-      if(count > 20) count = 20;
-      const A = +($('#rangeFrom').value || 0);
-      const B = +($('#rangeTo').value || 0);
-      const S = parseInt($('#kenoType').value || '0', 10);
-      const maxOv = parseInt($('#maxOv').value || '0', 10);
-      if(isNaN(A) || isNaN(B) || A > B || S <= 0){ alert('Ungültige Einstellungen (Bereich oder KENO-Typ)'); return; }
-      if(document.getElementById('usePattern').checked){ alert('Mehrfach‑Varianten funktionieren nur ohne aktiviertes Muster.'); return; }
-      const multiInfo = document.getElementById('multiInfo');
-      const multiResults = document.getElementById('multiResults');
-      if(multiResults) multiResults.innerHTML = '';
-      if(multiInfo){ multiInfo.style.display = ''; multiInfo.textContent = 'Berechne Varianten…'; }
-      const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
-      const genMode = document.getElementById('genMode').value || 'random';
-      const freq = computeFreqRange(A,B);
-      const covered = new Set();
-      const results = [];
-      let seed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
-      const maxTries = 3000;
-      for(let vi=0; vi<count; vi++){
-        let best = null;
-        for(let t=0; t<maxTries; t++){
-          const rand = rng(seed++);
-          const weights = [];
-          for(let v=A; v<=B; v++){
-            let w = 1;
-            if(covered.has(v)) w *= 0.2;
-            if(genMode === 'freq'){ w *= (freq[v - A] + 1); }
-            weights.push(w);
-          }
-          const cand = weightedSpreadPick(A,B,S,weights,rand);
-          if(document.getElementById('useRangeRules').checked){
-            const segSize = Math.max(1, +($('#segSize').value || 10));
-            const segMin  = +($('#segMin').value || 0);
-            const segMax  = +($('#segMax').value || 20);
-            const segs = {};
-            for(const v of cand){
-              const idx = Math.floor((v - A) / segSize);
-              segs[idx] = (segs[idx] || 0) + 1;
-            }
-            const totalSegs = Math.floor((B - A) / segSize) + 1;
-            let ok = true;
-            for(let sidx=0; sidx<totalSegs; sidx++){
-              const cval = segs[sidx] || 0;
-              if(cval < segMin || cval > segMax){ ok = false; break; }
-            }
-            if(!ok) continue;
-          }
-          const bits = toBitMask(cand);
-          if(!validAgainstBits(drawsBits, bits, maxOv)) continue;
-          let dup = false;
-          for(const r of results){ if(r.toString() === cand.toString()){ dup = true; break; } }
-          if(dup) continue;
-          const newCount = cand.filter(v => !covered.has(v)).length;
-          if(!best || newCount > best.newCount){ best = { cand, newCount }; }
-          if(best && best.newCount === S) break;
-        }
-        if(best){
-          results.push(best.cand);
-          for(const v of best.cand) covered.add(v);
-        } else {
-          const rand = rng(seed++);
-          const pool = [];
-          for(let v=A; v<=B; v++) pool.push(v);
-          const tmp = [];
-          for(let i=0; i<S && pool.length; i++){
-            const idx = Math.floor(rand() * pool.length);
-            tmp.push(pool.splice(idx,1)[0]);
-          }
-          tmp.sort((a,b) => a - b);
-          results.push(tmp);
-          for(const v of tmp) covered.add(v);
-        }
-      }
-      if(multiResults && results.length){
-        const frag = document.createDocumentFragment();
-        results.forEach((arr,i) => {
-          const div = document.createElement('div');
-          div.className = 'resItem';
-          div.innerHTML = '<span class="resNums">Variante ' + (i+1) + ' → ' + arr.join(' ') + '</span>';
-          frag.appendChild(div);
-        });
-        multiResults.appendChild(frag);
-      }
-      if(multiInfo){ multiInfo.textContent = results.length ? 'Generiert ' + results.length + ' Varianten mit insgesamt ' + covered.size + ' unterschiedlichen Zahlen.' : 'Keine Varianten gefunden.'; }
-      const pMulti = document.getElementById('p-multi');
-      if(pMulti) scrollToNode(pMulti);
-    });
-  }
+  // Die Mehrfach‑Varianten‑Funktion wurde in den Agent‑Modus integriert. Die frühere Variante‑Generierung ist entfernt.
 
   /* ===================== Agent‑Modus (KI‑Vorschläge) ===================== */
   // Ermittelt die häufigsten Paare (k=2) im Bereich A–B
@@ -1766,32 +1726,192 @@
       const agentResults = document.getElementById('agentResults');
       if(agentResults) agentResults.innerHTML = '';
       if(agentInfo){ agentInfo.style.display=''; agentInfo.textContent='Analysiere Archiv…'; }
+      const strategy = $('#agentStrategy').value || 'topfreq';
+      const nRes = Math.max(1, Math.min(20, parseInt($('#agentCount').value || '3', 10)));
+      // Hilfsfunktionen
+      const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
+      const maxOv = parseInt($('#maxOv').value || '0', 10);
+      const rangeRulesOn = $('#useRangeRules').checked;
+      const segSize = Math.max(2, +($('#segSize').value||10));
+      const segMin  = Math.max(0, +($('#segMin').value||0));
+      const segMax  = Math.max(segMin, +($('#segMax').value||10));
+      const respects = (arr)=>{
+        if(!rangeRulesOn) return true;
+        const segs = Math.floor((B - A) / segSize) + 1;
+        const counts = Array(segs).fill(0);
+        for(const v of arr){
+          const idx = Math.floor((v - A) / segSize);
+          counts[idx]++;
+        }
+        for(let i=0;i<segs;i++){
+          if(counts[i] < segMin) return false;
+          if(counts[i] > segMax) return false;
+        }
+        return true;
+      };
       const freq = computeFreqRange(A,B);
       const freqPairs = [];
       for(let i=0; i<freq.length; i++){ freqPairs.push({ num: A + i, count: freq[i] }); }
       freqPairs.sort((a,b) => b.count - a.count || a.num - b.num);
-      const topPairs = computeTopPairsRange(A,B, Math.min(3,S));
+      const topPairs = computeTopPairsRange(A,B, Math.min(10, S));
       const results = [];
-      // Für jede Top‑Pair eine Kombination bilden
-      for(const tp of topPairs){
-        const set = new Set(tp.pair);
-        for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
-        let arr = Array.from(set).sort((a,b) => a - b);
-        if(arr.length < S){
-          for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
-          arr.sort((a,b) => a - b);
-          arr = arr.slice(0,S);
-        }
-        results.push(arr);
+      const usedSets = new Set();
+      const covered = new Set();
+      const rngSeed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
+      let seed = rngSeed;
+      const rand = rng(seed);
+      // Funktionshelfer zum Prüfen auf Überschneidung
+      function isValid(arr){
+        // Prüfe Rangeregeln
+        if(!respects(arr)) return false;
+        // Prüfe Überschneidung
+        const bits = toBitMask(arr);
+        if(!validAgainstBits(drawsBits, bits, maxOv)) return false;
+        return true;
       }
-      if(results.length === 0){
-        const arr = freqPairs.slice(0, S).map(it => it.num);
-        results.push(arr);
+      function addResult(arr){
+        const key = arr.join(',');
+        if(!usedSets.has(key)){
+          usedSets.add(key);
+          results.push(arr);
+        }
+      }
+      // Erzeuge Vorschläge entsprechend der gewählten Strategie
+      if(strategy === 'topfreq'){
+        // Nimm die häufigsten Zahlen der Reihe nach, rollierend, um Varianten zu erzeugen
+        const nums = freqPairs.map(it => it.num);
+        for(let i=0; i<nRes; i++){
+          const start = i * S;
+          const seg = nums.slice(start, start + S);
+          if(seg.length < S){ // wrap-around
+            const rest = S - seg.length;
+            seg.push(...nums.slice(0, rest));
+          }
+          const cand = seg.slice(0, S).sort((a,b)=>a-b);
+          if(isValid(cand)) addResult(cand);
+          if(results.length >= nRes) break;
+        }
+      } else if(strategy === 'toppairs'){
+        // Baue aus den häufigsten Paaren jeweils eine Kombination
+        for(const tp of topPairs){
+          if(results.length >= nRes) break;
+          const set = new Set(tp.pair);
+          for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+          let arr = Array.from(set).sort((a,b) => a - b);
+          if(arr.length < S){
+            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+            arr.sort((a,b) => a - b);
+            arr = arr.slice(0,S);
+          }
+          if(isValid(arr)) addResult(arr);
+        }
+        // Falls nicht genug Paare gefunden wurden, ergänze mit topfreq
+        let idx = 0;
+        while(results.length < nRes && idx < freqPairs.length){
+          const arr = freqPairs.slice(idx, idx + S).map(it => it.num);
+          if(arr.length < S){
+            const rest = S - arr.length;
+            arr.push(...freqPairs.slice(0, rest).map(it => it.num));
+          }
+          const cand = arr.slice(0, S).sort((a,b) => a-b);
+          if(isValid(cand)) addResult(cand);
+          idx += S;
+        }
+      } else if(strategy === 'coverage'){
+        // Coverage: verteile die Zahlen so, dass über alle Varianten möglichst viele unterschiedliche Zahlen vorkommen
+        for(let vi=0; vi<nRes; vi++){
+          let best = null;
+          for(let t=0; t<2000; t++){
+            const weights = [];
+            for(let v=A; v<=B; v++){
+              let w = 1;
+              if(covered.has(v)) w *= 0.3;
+              w *= (freq[v - A] + 1);
+              weights.push(w);
+            }
+            const cand = weightedSpreadPick(A,B,S,weights,rng(seed++));
+            if(!isValid(cand)) continue;
+            const newCount = cand.filter(v => !covered.has(v)).length;
+            if(!best || newCount > best.newCount){ best = { cand, newCount }; }
+            if(best && best.newCount === S) break;
+          }
+          if(best){
+            addResult(best.cand);
+            for(const v of best.cand) covered.add(v);
+          } else {
+            // Fallback: nimm die häufigsten noch nicht verwendeten Zahlen
+            const arr = [];
+            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+            while(arr.length < S){
+              const randIdx = Math.floor(rand() * freqPairs.length);
+              const v = freqPairs[randIdx].num;
+              if(!arr.includes(v)) arr.push(v);
+            }
+            arr.sort((a,b) => a - b);
+            if(isValid(arr)) addResult(arr);
+            for(const v of arr) covered.add(v);
+          }
+          if(results.length >= nRes) break;
+        }
+      } else if(strategy === 'hotgroups'){
+        // Nutze die im Hot‑Gruppen‑Modul berechneten Gruppen (g_hotGroups) als Kern
+        const groups = g_hotGroups.slice(0, Math.max(1,nRes));
+        for(const g of groups){
+          if(results.length >= nRes) break;
+          const set = new Set(g);
+          for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+          let arr = Array.from(set).sort((a,b) => a - b);
+          if(arr.length < S){
+            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+            arr.sort((a,b) => a - b);
+            arr = arr.slice(0,S);
+          }
+          if(isValid(arr)) addResult(arr);
+        }
+        // Fallback: zufällige Kombinationen aus Topfreq
+        let idx = 0;
+        while(results.length < nRes && idx < freqPairs.length){
+          const arr = freqPairs.slice(idx, idx + S).map(it => it.num);
+          if(arr.length < S){
+            const rest = S - arr.length;
+            arr.push(...freqPairs.slice(0, rest).map(it => it.num));
+          }
+          const cand = arr.slice(0, S).sort((a,b) => a-b);
+          if(isValid(cand)) addResult(cand);
+          idx += S;
+        }
+      } else {
+        // Zufall
+        for(let i=0; i<nRes*5 && results.length < nRes; i++){
+          const cand = [];
+          const pool = [];
+          for(let v=A; v<=B; v++) pool.push(v);
+          const r = rng(seed++);
+          while(cand.length < S && pool.length){
+            const idx = Math.floor(r() * pool.length);
+            cand.push(pool.splice(idx,1)[0]);
+          }
+          cand.sort((a,b) => a - b);
+          if(isValid(cand)) addResult(cand);
+        }
+      }
+      // Falls immer noch weniger als nRes Ergebnisse, fülle mit Topfreq
+      let fillIdx = 0;
+      while(results.length < nRes){
+        const arr = freqPairs.slice(fillIdx, fillIdx + S).map(it => it.num);
+        if(arr.length < S){
+          const rest = S - arr.length;
+          arr.push(...freqPairs.slice(0, rest).map(it => it.num));
+        }
+        const cand = arr.slice(0, S).sort((a,b) => a-b);
+        if(isValid(cand)) addResult(cand);
+        fillIdx += S;
+        if(fillIdx > freqPairs.length) break;
       }
       // Ausgabe
       if(agentResults && results.length){
         const frag = document.createDocumentFragment();
-        results.forEach((arr,i) => {
+        results.slice(0,nRes).forEach((arr,i) => {
           const div = document.createElement('div');
           div.className = 'resItem';
           div.innerHTML = '<span class="resNums">Agent Vorschlag ' + (i + 1) + ' → ' + arr.join(' ') + '</span>';
@@ -1799,7 +1919,7 @@
         });
         agentResults.appendChild(frag);
       }
-      if(agentInfo){ agentInfo.textContent = results.length ? 'Agent hat ' + results.length + ' Vorschläge erstellt.' : 'Keine Vorschläge gefunden.'; }
+      if(agentInfo){ agentInfo.textContent = results.length ? 'Agent hat ' + Math.min(results.length,nRes) + ' Vorschläge erstellt.' : 'Keine Vorschläge gefunden.'; }
       const pAgent = document.getElementById('p-agent');
       if(pAgent) scrollToNode(pAgent);
     });
