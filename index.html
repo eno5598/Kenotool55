@@ -294,6 +294,27 @@
     <div id="statsList" class="status" style="display:none;margin-top:6px"></div>
   </div>
 
+  <!-- 🎯 Mehrfach-Varianten -->
+  <!--
+    Dieses Panel ermöglicht die Erstellung mehrerer voneinander unterschiedlicher Tippvarianten.
+    Die Varianten werden so generiert, dass sie möglichst viele unterschiedliche Zahlen abdecken,
+    um die Wahrscheinlichkeit eines Treffers über mehrere Tipps zu erhöhen. Standard sind 6 Varianten.
+  -->
+  <div class="panel" id="p-multi" style="border-left:6px solid var(--accent)">
+    <div class="ph"><span class="emoji">🎯</span><h2 style="margin:0">Mehrfach‑Varianten</h2></div>
+    <div class="row">
+      <div>
+        <label>Anzahl Varianten</label>
+        <input type="number" id="multiCount" value="6" min="2" max="20">
+      </div>
+      <div style="flex:1 1 180px;display:flex;align-items:flex-end">
+        <button id="makeMulti" class="secondary">Varianten generieren</button>
+      </div>
+    </div>
+    <div id="multiInfo" class="status" style="display:none;margin-top:6px"></div>
+    <div id="multiResults" class="results"></div>
+  </div>
+
   <!-- 🧠 Tipp prüfen -->
   <div class="panel" id="p-analyse" style="border-left:6px solid var(--accent)">
     <div class="ph"><span class="emoji">🧠</span><h2 style="margin:0">Tipp analysieren</h2><span class="pill">Auto-Scroll hierher</span></div>
@@ -1495,6 +1516,176 @@
     const el=document.getElementById(id);
     if(el) el.addEventListener('input', updateRangeSummary);
   });
+
+  /* ===================== Mehrfach‑Varianten (Multi‑Tipps) ===================== */
+  // Diese Funktionen und der Event‑Handler ermöglichen das Erzeugen mehrerer verschiedener Tipp‑Varianten.
+  // Ziel ist es, in mehreren Kombinationen möglichst viele unterschiedliche Zahlen abzudecken.
+  function computeFreqRange(A,B){
+    const n = B - A + 1;
+    const freq = Array(n).fill(0);
+    for(const draw of g_draws){
+      for(const v of draw){
+        if(v>=A && v<=B) freq[v-A]++;
+      }
+    }
+    return freq;
+  }
+  // Einfacher PRNG basierend auf xorshift
+  function rng(seed){ let t = seed >>> 0; return () => { t = (t + 0x6D2B79F5) >>> 0; let r = ((t ^ (t >>> 15)) | 1); r = Math.imul(r ^ (r >>> 7), 61 | r); r = (r ^ (r >>> 14)) >>> 0; return r / 4294967296; }; }
+  // Gewichtete Auswahl mit Maximierung des minimalen Abstands
+  function weightedSpreadPick(A,B,S,weights,rand){
+    const avail = [];
+    for(let v=A; v<=B; v++){
+      let w = weights[v - A];
+      if(!(w > 0)) w = 0.0001;
+      avail.push({v,w});
+    }
+    function pickWeightedFirst(){
+      let sum = 0;
+      for(const p of avail) sum += p.w;
+      let r = rand() * sum;
+      for(let i=0; i<avail.length; i++){
+        r -= avail[i].w;
+        if(r <= 0){ return avail.splice(i,1)[0].v; }
+      }
+      return avail.splice(avail.length - 1, 1)[0].v;
+    }
+    const chosen = [];
+    if(avail.length > 0) chosen.push(pickWeightedFirst());
+    while(chosen.length < S && avail.length > 0){
+      let bestIdx = 0;
+      let bestScore = -Infinity;
+      for(let i=0; i<avail.length; i++){
+        const cand = avail[i];
+        let minDist = Infinity;
+        for(const c of chosen){
+          const d = Math.abs(cand.v - c);
+          if(d < minDist) minDist = d;
+        }
+        const score = cand.w * minDist;
+        if(score > bestScore){ bestScore = score; bestIdx = i; }
+      }
+      chosen.push(avail.splice(bestIdx, 1)[0].v);
+    }
+    return chosen.sort((a,b) => a - b);
+  }
+  function toBitMask(arr){
+    let bits = 0n;
+    for(const v of arr){
+      if(v > 0) bits |= (1n << BigInt(v - 1));
+    }
+    return bits;
+  }
+  function popcountLimit(x, limit){
+    let c = 0n;
+    while(x && c <= BigInt(limit)){
+      x &= (x - 1n);
+      c++;
+    }
+    return Number(c);
+  }
+  function validAgainstBits(drawsBits, candBits, maxOv){
+    for(const db of drawsBits){
+      const nbits = candBits & db;
+      if(popcountLimit(nbits, maxOv) > maxOv) return false;
+    }
+    return true;
+  }
+  // Handler zur Generierung mehrerer Varianten
+  const btnMakeMulti = document.getElementById('makeMulti');
+  if(btnMakeMulti){
+    btnMakeMulti.addEventListener('click', function(){
+      if(!g_draws.length){ alert('Bitte zuerst Archiv laden'); return; }
+      let count = parseInt(document.getElementById('multiCount')?.value || '6', 10);
+      if(isNaN(count) || count < 2) count = 2;
+      if(count > 20) count = 20;
+      const A = +($('#rangeFrom').value || 0);
+      const B = +($('#rangeTo').value || 0);
+      const S = parseInt($('#kenoType').value || '0', 10);
+      const maxOv = parseInt($('#maxOv').value || '0', 10);
+      if(isNaN(A) || isNaN(B) || A > B || S <= 0){ alert('Ungültige Einstellungen (Bereich oder KENO-Typ)'); return; }
+      if(document.getElementById('usePattern').checked){ alert('Mehrfach‑Varianten funktionieren nur ohne aktiviertes Muster.'); return; }
+      const multiInfo = document.getElementById('multiInfo');
+      const multiResults = document.getElementById('multiResults');
+      if(multiResults) multiResults.innerHTML = '';
+      if(multiInfo){ multiInfo.style.display = ''; multiInfo.textContent = 'Berechne Varianten…'; }
+      const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
+      const genMode = document.getElementById('genMode').value || 'random';
+      const freq = computeFreqRange(A,B);
+      const covered = new Set();
+      const results = [];
+      let seed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
+      const maxTries = 3000;
+      for(let vi=0; vi<count; vi++){
+        let best = null;
+        for(let t=0; t<maxTries; t++){
+          const rand = rng(seed++);
+          const weights = [];
+          for(let v=A; v<=B; v++){
+            let w = 1;
+            if(covered.has(v)) w *= 0.2;
+            if(genMode === 'freq'){ w *= (freq[v - A] + 1); }
+            weights.push(w);
+          }
+          const cand = weightedSpreadPick(A,B,S,weights,rand);
+          if(document.getElementById('useRangeRules').checked){
+            const segSize = Math.max(1, +($('#segSize').value || 10));
+            const segMin  = +($('#segMin').value || 0);
+            const segMax  = +($('#segMax').value || 20);
+            const segs = {};
+            for(const v of cand){
+              const idx = Math.floor((v - A) / segSize);
+              segs[idx] = (segs[idx] || 0) + 1;
+            }
+            const totalSegs = Math.floor((B - A) / segSize) + 1;
+            let ok = true;
+            for(let sidx=0; sidx<totalSegs; sidx++){
+              const cval = segs[sidx] || 0;
+              if(cval < segMin || cval > segMax){ ok = false; break; }
+            }
+            if(!ok) continue;
+          }
+          const bits = toBitMask(cand);
+          if(!validAgainstBits(drawsBits, bits, maxOv)) continue;
+          let dup = false;
+          for(const r of results){ if(r.toString() === cand.toString()){ dup = true; break; } }
+          if(dup) continue;
+          const newCount = cand.filter(v => !covered.has(v)).length;
+          if(!best || newCount > best.newCount){ best = { cand, newCount }; }
+          if(best && best.newCount === S) break;
+        }
+        if(best){
+          results.push(best.cand);
+          for(const v of best.cand) covered.add(v);
+        } else {
+          const rand = rng(seed++);
+          const pool = [];
+          for(let v=A; v<=B; v++) pool.push(v);
+          const tmp = [];
+          for(let i=0; i<S && pool.length; i++){
+            const idx = Math.floor(rand() * pool.length);
+            tmp.push(pool.splice(idx,1)[0]);
+          }
+          tmp.sort((a,b) => a - b);
+          results.push(tmp);
+          for(const v of tmp) covered.add(v);
+        }
+      }
+      if(multiResults && results.length){
+        const frag = document.createDocumentFragment();
+        results.forEach((arr,i) => {
+          const div = document.createElement('div');
+          div.className = 'resItem';
+          div.innerHTML = '<span class="resNums">Variante ' + (i+1) + ' → ' + arr.join(' ') + '</span>';
+          frag.appendChild(div);
+        });
+        multiResults.appendChild(frag);
+      }
+      if(multiInfo){ multiInfo.textContent = results.length ? 'Generiert ' + results.length + ' Varianten mit insgesamt ' + covered.size + ' unterschiedlichen Zahlen.' : 'Keine Varianten gefunden.'; }
+      const pMulti = document.getElementById('p-multi');
+      if(pMulti) scrollToNode(pMulti);
+    });
+  }
 
   /* ===================== AutoLoad & Buttons ===================== */
   $("#autoLoad").addEventListener("click", ()=>{
