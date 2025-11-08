@@ -185,8 +185,11 @@
           <div id="hotHardWrap" class="hint" style="display:none;margin-top:6px">
             Hard-Zeit: 
             <select id="hotHardBudget">
+              <option value="2">≈ 2 min</option>
               <option value="5" selected>≈ 5 min</option>
               <option value="10">≈ 10 min</option>
+              <option value="15">≈ 15 min</option>
+              <option value="30">≈ 30 min</option>
               <option value="max">Maximum (ganze Historie)</option>
             </select>
           </div>
@@ -220,8 +223,11 @@
         <div id="genHardWrap" class="hint" style="display:none;margin-top:6px">
           Hard-Zeit:
           <select id="genHardBudget">
+            <option value="2">≈ 2 min</option>
             <option value="5" selected>≈ 5 min</option>
             <option value="10">≈ 10 min</option>
+            <option value="15">≈ 15 min</option>
+            <option value="30">≈ 30 min</option>
             <option value="max">Maximum</option>
           </select>
         </div>
@@ -313,6 +319,22 @@
     </div>
     <div id="multiInfo" class="status" style="display:none;margin-top:6px"></div>
     <div id="multiResults" class="results"></div>
+  </div>
+
+  <!-- 🤖 Agent Mode -->
+  <!--
+    Der Agent‑Modus analysiert das geladene Archiv und schlägt automatisch eine oder mehrere Kombinationen
+    basierend auf häufigen Zahlen und häufigen Paaren vor. Er nutzt dabei alle verfügbaren Ziehungen,
+    um Kombinationen zu generieren, die theoretisch eine höhere Trefferwahrscheinlichkeit haben können.
+  -->
+  <div class="panel" id="p-agent" style="border-left:6px solid var(--accent2)">
+    <div class="ph"><span class="emoji">🤖</span><h2 style="margin:0">Agent‑Modus</h2></div>
+    <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
+    <div class="row" style="margin-top:6px">
+      <button id="agentGo" class="primary">Agent starten</button>
+    </div>
+    <div id="agentInfo" class="status" style="display:none;margin-top:6px"></div>
+    <div id="agentResults" class="results"></div>
   </div>
 
   <!-- 🧠 Tipp prüfen -->
@@ -815,24 +837,32 @@
   ["hotWindow","hotK","hotTopN","hotMode"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); }); });
   $("#hotStart").addEventListener("click", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
 
-  function hardBudgetSeconds(sel){ return sel==="5"? 300 : sel==="10"? 600 : Infinity; }
+  function hardBudgetSeconds(sel){
+    // Budgetauswahl (Minuten) in Sekunden umrechnen
+    if(sel === "2") return 120;
+    if(sel === "5") return 300;
+    if(sel === "10") return 600;
+    if(sel === "15") return 900;
+    if(sel === "30") return 1800;
+    return Infinity;
+  }
 
   function recomputeHotGroups(){
     if(!g_draws.length){ g_hotGroups=[]; text($("#hotInfo"),"aktiv: kein Archiv"); return; }
     const k=+($("#hotK").value||2);
     let topN=Math.max(5,Math.min(1000,+($("#hotTopN").value||30)));
     const level=$("#searchLevel").value||"normal";
-    let win=Math.max(50,+($("#hotWindow").value||500)); if(win>g_draws.length) win=g_draws.length;
-
+    // Für Hot‑Paare/Fünfer immer das gesamte Archiv nutzen
+    let win = g_draws.length;
     const LEVELS={ normal:{winMul:1.2, topMul:1.2}, medium:{winMul:1.6, topMul:1.8}, hard:{winMul:2.2, topMul:2.5} };
     const L=LEVELS[level]||LEVELS.normal;
-    win=Math.min(g_draws.length, Math.max(1, Math.floor(win*L.winMul)));
+    // Erweitere Top N je nach Stufe
     topN=Math.floor(topN*L.topMul);
 
     const hardSel = ($("#searchLevel").value==="hard");
     const budgetSec = (!hardSel) ? 0 : hardBudgetSeconds($("#hotHardBudget").value);
 
-    const fromIdx=Math.max(0,g_draws.length-win);
+    const fromIdx=0;
     const slice=g_draws.slice(fromIdx);
 
     if(hotWorker){ try{ hotWorker.terminate(); }catch{} hotWorker=null; }
@@ -1018,7 +1048,14 @@
     return g_draws.map(d=> toBits(d).toString());
   }
   function triesBaseForNormal(base){ return { tries: Math.max(base*2, base+40_000), seeds: 3 }; }
-  function hardBudgetSecondsGen(sel){ return sel==="5"? 300 : sel==="10"? 600 : Infinity; }
+  function hardBudgetSecondsGen(sel){
+    if(sel === "2") return 120;
+    if(sel === "5") return 300;
+    if(sel === "10") return 600;
+    if(sel === "15") return 900;
+    if(sel === "30") return 1800;
+    return Infinity;
+  }
 
   function startGenerateInWorker(params){
     if(genWorker){ try{ genWorker.terminate(); }catch{} genWorker=null; }
@@ -1509,7 +1546,18 @@
     const max = +($("#segMax").value||0);
     if(isNaN(A)||isNaN(B)||A>B){ summaryEl.textContent="Ungültiger Bereich"; return; }
     const segs = Math.floor((B - A) / size) + 1;
-    summaryEl.textContent = `Bereich ${A}–${B} → ${segs} Segmente. Min=${min}, Max=${max}.`;
+    // Detaillierte Segmentliste erstellen
+    const lines=[];
+    lines.push(`Bereich ${A}–${B} → ${segs} Segmente (min=${min}, max=${max})`);
+    const limit = segs > 15 ? 15 : segs;
+    for(let i=0; i<limit; i++){
+      const start = A + i*size;
+      const end = Math.min(B, start + size - 1);
+      lines.push(`${start}-${end}: ≥${min}, ≤${max}`);
+    }
+    if(segs > limit) lines.push(`… weitere Segmente (${segs - limit} weitere)`);
+    // Neue Darstellung als HTML mit Zeilenumbrüchen
+    summaryEl.innerHTML = lines.map(l => l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
   }
   // Reagiere auf Änderungen der Eingabefelder im Bereichsregeln-Panel
   ["segSize","segMin","segMax","rangeFrom","rangeTo"].forEach(id=>{
@@ -1684,6 +1732,76 @@
       if(multiInfo){ multiInfo.textContent = results.length ? 'Generiert ' + results.length + ' Varianten mit insgesamt ' + covered.size + ' unterschiedlichen Zahlen.' : 'Keine Varianten gefunden.'; }
       const pMulti = document.getElementById('p-multi');
       if(pMulti) scrollToNode(pMulti);
+    });
+  }
+
+  /* ===================== Agent‑Modus (KI‑Vorschläge) ===================== */
+  // Ermittelt die häufigsten Paare (k=2) im Bereich A–B
+  function computeTopPairsRange(A,B,topN){
+    topN = topN || 10;
+    const counts = new Map();
+    for(const draw of g_draws){
+      const arr = draw.filter(v => v>=A && v<=B).sort((a,b) => a-b);
+      const n = arr.length;
+      for(let i=0; i<n; i++){
+        for(let j=i+1; j<n; j++){
+          const key = arr[i] + '-' + arr[j];
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+    }
+    const list = Array.from(counts.entries()).sort((a,b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return list.slice(0, topN).map(([key,count]) => ({ pair: key.split('-').map(x => parseInt(x,10)), count }));
+  }
+  // Event für den Agent‑Modus
+  const btnAgentGo = document.getElementById('agentGo');
+  if(btnAgentGo){
+    btnAgentGo.addEventListener('click', function(){
+      if(!g_draws.length){ alert('Bitte zuerst Archiv laden'); return; }
+      const A = +($('#rangeFrom').value || 0);
+      const B = +($('#rangeTo').value || 0);
+      const S = parseInt($('#kenoType').value || '0', 10);
+      if(isNaN(A) || isNaN(B) || A > B || S <= 0){ alert('Ungültige Einstellungen'); return; }
+      const agentInfo = document.getElementById('agentInfo');
+      const agentResults = document.getElementById('agentResults');
+      if(agentResults) agentResults.innerHTML = '';
+      if(agentInfo){ agentInfo.style.display=''; agentInfo.textContent='Analysiere Archiv…'; }
+      const freq = computeFreqRange(A,B);
+      const freqPairs = [];
+      for(let i=0; i<freq.length; i++){ freqPairs.push({ num: A + i, count: freq[i] }); }
+      freqPairs.sort((a,b) => b.count - a.count || a.num - b.num);
+      const topPairs = computeTopPairsRange(A,B, Math.min(3,S));
+      const results = [];
+      // Für jede Top‑Pair eine Kombination bilden
+      for(const tp of topPairs){
+        const set = new Set(tp.pair);
+        for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+        let arr = Array.from(set).sort((a,b) => a - b);
+        if(arr.length < S){
+          for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+          arr.sort((a,b) => a - b);
+          arr = arr.slice(0,S);
+        }
+        results.push(arr);
+      }
+      if(results.length === 0){
+        const arr = freqPairs.slice(0, S).map(it => it.num);
+        results.push(arr);
+      }
+      // Ausgabe
+      if(agentResults && results.length){
+        const frag = document.createDocumentFragment();
+        results.forEach((arr,i) => {
+          const div = document.createElement('div');
+          div.className = 'resItem';
+          div.innerHTML = '<span class="resNums">Agent Vorschlag ' + (i + 1) + ' → ' + arr.join(' ') + '</span>';
+          frag.appendChild(div);
+        });
+        agentResults.appendChild(frag);
+      }
+      if(agentInfo){ agentInfo.textContent = results.length ? 'Agent hat ' + results.length + ' Vorschläge erstellt.' : 'Keine Vorschläge gefunden.'; }
+      const pAgent = document.getElementById('p-agent');
+      if(pAgent) scrollToNode(pAgent);
     });
   }
 
