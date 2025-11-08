@@ -245,7 +245,6 @@
           <option value="random" selected>Zufall (wie bisher)</option>
           <option value="freq">Frequenz-basiert (häufige Zahlen bevorzugen)</option>
           <option value="hotpairs">Hot-Paare (Top-Paare erzwingen/gewichten)</option>
-          <option value="spread">Gleichmäßig verteilt (max. Abstände)</option>
         </select>
         <div class="hint">Gilt nur wenn <b>kein Muster</b> genutzt wird.</div>
       </div>
@@ -279,6 +278,8 @@
         <div><label>Max pro Segment</label><input type="number" id="segMax" value="10" min="1" max="20"></div>
       </div>
       <div class="hint">Beispiel A=1, B=70, Breite=10 ⇒ Segmente 1-10, 11-20, … 61-70.</div>
+      <!-- Dynamisch generierte Zusammenfassung der Bereichsregel -->
+      <div id="rangeSummary" class="hint" style="margin-top:4px"></div>
     </div>
   </div>
 
@@ -289,7 +290,8 @@
       <div><button id="calcStats" class="secondary">Statistik berechnen</button></div>
     </div>
     <div id="statsInfo" class="status" style="display:none;margin-top:6px"></div>
-    <div id="statsChart" style="margin-top:10px; display:flex; align-items:flex-end; gap:2px; height:150px; border:1px solid var(--muted); padding:4px; overflow-x:auto"></div>
+    <!-- Statt einer Balkengrafik wird hier eine Top-Liste angezeigt -->
+    <div id="statsList" class="status" style="display:none;margin-top:6px"></div>
   </div>
 
   <!-- 🧠 Tipp prüfen -->
@@ -970,19 +972,22 @@
     info.push(`Bereich: ${A}-${B}`);
     $("#statsInfo").innerHTML = info.join('<br>');
     $("#statsInfo").style.display="";
-    const chart=$("#statsChart");
-    chart.innerHTML="";
-    // Jeder Balken hat fixe Breite. Überlauf wird scrollbar.
-    const barWidth=4;
+    // Statistikliste: Top-Zahlen mit Häufigkeit und Anteil
+    const listEl = $("#statsList");
+    const sumCounts = freq.reduce((a,b)=>a+b,0) || 1;
+    // Paare {num, count}
+    const freqPairs = [];
     for(let i=0;i<freq.length;i++){
-      const bar=document.createElement('div');
-      bar.style.width=barWidth+'px';
-      bar.style.height=(freq[i]/maxFreq*100)+'%';
-      bar.style.background='var(--accent)';
-      bar.title = (A+i) + ': ' + freq[i];
-      bar.style.marginRight='1px';
-      chart.appendChild(bar);
+      freqPairs.push({ num: A+i, count: freq[i] });
     }
+    freqPairs.sort((a,b)=> b.count - a.count || a.num - b.num);
+    const top = freqPairs.slice(0, Math.min(15, freqPairs.length));
+    const lines = top.map(it => {
+      const pct = (it.count / sumCounts * 100).toFixed(2);
+      return `${it.num}: ${it.count}× (${pct}%)`;
+    });
+    listEl.innerHTML = lines.join('<br>');
+    listEl.style.display = '';
   }
   $("#calcStats").addEventListener('click', showStats);
 
@@ -1137,9 +1142,8 @@
               }
               if(pairHits<reqPairs){ cand=null; }
             }
-          }else if(strategy==='spread'){
-            cand = spreadPick(A,B,S,rand);
           }else{
+            // Fallback und Zufallsmodus
             cand = sampleRange(A,B,S,rand);
           }
           if(!cand) { continue; }
@@ -1467,9 +1471,30 @@
   function toggleRangeRulesUI(){
     const on = $("#useRangeRules").checked;
     $("#rangeRulesBox").style.display = on ? "" : "none";
+    updateRangeSummary();
   }
   $("#useRangeRules").addEventListener("change", toggleRangeRulesUI);
   toggleRangeRulesUI();
+
+  // Aktualisiert die Text-Zusammenfassung der Bereichsregeln
+  function updateRangeSummary(){
+    const summaryEl = document.getElementById('rangeSummary');
+    if(!summaryEl) return;
+    if(!$("#useRangeRules").checked){ summaryEl.textContent = ""; return; }
+    const A = +($("#rangeFrom").value||0);
+    const B = +($("#rangeTo").value||0);
+    const size = Math.max(1, +($("#segSize").value||10));
+    const min = +($("#segMin").value||0);
+    const max = +($("#segMax").value||0);
+    if(isNaN(A)||isNaN(B)||A>B){ summaryEl.textContent="Ungültiger Bereich"; return; }
+    const segs = Math.floor((B - A) / size) + 1;
+    summaryEl.textContent = `Bereich ${A}–${B} → ${segs} Segmente. Min=${min}, Max=${max}.`;
+  }
+  // Reagiere auf Änderungen der Eingabefelder im Bereichsregeln-Panel
+  ["segSize","segMin","segMax","rangeFrom","rangeTo"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener('input', updateRangeSummary);
+  });
 
   /* ===================== AutoLoad & Buttons ===================== */
   $("#autoLoad").addEventListener("click", ()=>{
