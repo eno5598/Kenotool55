@@ -6,16 +6,17 @@
 <title>KENO – Kombinationen, Muster & Hot-Gruppen (Maximum fähig)</title>
 <style>
   :root{
-    /* Farben leicht angepasst für einen moderneren Look */
-    --bg: #0a1124;       /* dunkles Blau statt reines Schwarz */
-    --panel: #122244;    /* dunkler Blau‑Ton für Panels */
-    --border: #2b416d;   /* dezenter Rand */
-    --muted: #1e3058;    /* Hintergrund für Eingaben/Karten */
-    --text: #f1f5f9;     /* helles Grau für Texte */
-    --accent: #31c48d;   /* frisches Grün für Highlights */
-    --accent2: #3b82f6;  /* lebendiges Blau für Sekundär‑Panels */
-    --warm: #f97316;     /* warmes Orange für Hinweise */
-    --danger: #dc2626;   /* intensives Rot für Warnungen */
+  /* Farben für eine modernere, kontrastreichere Darstellung */
+    /* Farben angepasst für ein helleres, moderneres Design */
+    --bg: #112b53;       /* leicht aufgehellter dunkler Hintergrund */
+    --panel: #1b4880;    /* sanfter Blauton für Panels */
+    --border: #4e6b99;   /* hellerer Rand */
+    --muted: #355a92;    /* Hintergrund für Eingaben und Karten */
+    --text: #f5f8ff;     /* helles Grau für Texte */
+    --accent: #6fd8b5;   /* frischeres Grün für Highlights */
+    --accent2: #6bbcf8;  /* lebendiges Hellblau für Sekundär‑Panels */
+    --warm: #fbb15f;     /* warmes Orange für Hinweise */
+    --danger: #f66a6b;   /* weicheres Rot für Warnungen */
   }
   html,body{height:100%}
   body{margin:0;padding:16px;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
@@ -150,9 +151,15 @@
 
   <!-- 🧩 Muster -->
   <div class="panel" id="p-pattern" style="border-left:6px solid var(--warm)">
-    <div class="ph"><span class="emoji">🧩</span><h2 style="margin:0">Muster-Abstände</h2><span class="pill">S = Abstände + 1</span></div>
+    <div class="ph" style="display:flex;align-items:center;gap:10px">
+      <span class="emoji">🧩</span><h2 style="margin:0">Muster-Abstände</h2><span class="pill">S = Abstände + 1</span>
+      <!-- Button zum Ein-/Ausblenden des Muster-Editors -->
+      <button id="patternToggle" class="ghost" style="margin-left:auto">Editor ein-/ausblenden</button>
+    </div>
     <label><input type="checkbox" id="usePattern"> Muster verwenden</label>
-    <div id="patternBox">
+    <!-- Der Muster-Editor wird immer eingeblendet; er kann per Button ein-/ausgeblendet werden -->
+    <!-- Der Muster-Editor ist standardmäßig ausgeblendet und kann per Button ein- oder ausgeblendet werden -->
+    <div id="patternBox" style="display:none">
       <label>Aktuelles Muster (read-only)</label>
       <div id="gapLine" class="mono" style="margin:4px 0 8px;opacity:.9">[ ]</div>
       <div class="chips" id="chips"></div>
@@ -204,7 +211,6 @@
             <option value="2" selected>2 (Paare)</option>
             <option value="3">3</option>
             <option value="4">4</option>
-            <option value="5">5</option>
           </select>
         </div>
         <div><label>Top N</label><input type="number" id="hotTopN" value="30" min="5" max="1000"></div>
@@ -247,7 +253,10 @@
     <div class="ph"><span class="emoji">🧮</span><h2 style="margin:0">Kombinationen generieren</h2></div>
     <div class="row">
       <div><label>Wieviele Ergebnisse</label><input type="number" id="want" value="10" min="1" max="2000"></div>
-      <div><label>Seed</label><input type="number" id="seed" value="1" min="0"></div>
+      <div><label>Seed
+        <span class="hint" style="display:block;font-weight:normal">Startwert des Zufallszahlengenerators – gleiche Seeds liefern identische Ergebnisse (ähnlich wie bei echten KENO‑Ziehungen)</span>
+      </label>
+        <input type="number" id="seed" value="1" min="0"></div>
       <div>
         <label>Zeitlimit</label>
         <select id="genTime">
@@ -308,7 +317,7 @@
     </label>
     <div id="rangeRulesBox" style="display:none">
       <div class="row">
-        <div><label>Segment-Breite</label><input type="number" id="segSize" value="10" min="2" max="50"></div>
+        <div><label>Segment-Länge (Anzahl Zahlen)</label><input type="number" id="segSize" value="10" min="2" max="50"></div>
         <div><label>Min pro Segment</label><input type="number" id="segMin" value="0" min="0" max="10"></div>
         <div><label>Max pro Segment</label><input type="number" id="segMax" value="10" min="1" max="20"></div>
       </div>
@@ -342,17 +351,7 @@
     <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
     <div class="row" style="margin-top:6px">
       <div>
-        <label>Strategie</label>
-        <select id="agentStrategy">
-          <option value="topfreq" selected>Häufigste Zahlen</option>
-          <option value="toppairs">Häufigste Paare</option>
-          <option value="coverage">Abdeckung maximieren</option>
-          <option value="hotgroups">Hot-Gruppen</option>
-          <option value="random">Zufall</option>
-        </select>
-      </div>
-      <div>
-        <label>Ergebnisse</label>
+        <label>Anzahl Vorschläge</label>
         <input type="number" id="agentCount" value="3" min="1" max="20">
       </div>
       <div style="flex:1 1 180px;display:flex;align-items:flex-end">
@@ -812,13 +811,9 @@ function togglePatternBox(){
     const on = $("#usePattern").checked;
     const box = $("#patternBox");
     if(!box) return;
-    // Statt komplett auszublenden wird der Editor nur deaktiviert/aktiviert
-    if(on){
-      box.classList.remove('pattern-disabled');
-    } else {
-      box.classList.add('pattern-disabled');
-    }
-    try{ localStorage.setItem(USEPAT_KEY, on? "1" : "0"); }catch{}
+    // Setze eine Klasse, die den Editor optisch deaktiviert, anstatt ihn zu verstecken
+    if(on){ box.classList.remove('pattern-disabled'); } else { box.classList.add('pattern-disabled'); }
+    try{ localStorage.setItem(USEPAT_KEY, on ? "1" : "0"); }catch{}
   }
   $("#usePattern").addEventListener("change", togglePatternBox);
   $("#chips").addEventListener("click", e=>{
@@ -844,6 +839,21 @@ function togglePatternBox(){
   $("#gapAllMinus").addEventListener("click", ()=>incAll(-1));
   $("#gapShuffle").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(shuffle(g_pattern)); });
   $("#gapReverse").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(reverseArr(g_pattern)); });
+
+  // Ein-/Ausblenden des Muster-Editors über den Toggle-Button
+  const btnPatternToggle = document.getElementById('patternToggle');
+  if(btnPatternToggle){
+    btnPatternToggle.addEventListener('click', ()=>{
+      const box = document.getElementById('patternBox');
+      if(!box) return;
+      // Toggle display
+      if(box.style.display === 'none'){
+        box.style.display = '';
+      } else {
+        box.style.display = 'none';
+      }
+    });
+  }
 
   /* ===================== Varianten ===================== */
   function computeStats(A,B){
@@ -1711,7 +1721,8 @@ function togglePatternBox(){
     const segs = Math.floor((B - A) / size) + 1;
     // Detaillierte Segmentliste erstellen
     const lines=[];
-    lines.push(`Bereich ${A}–${B} → ${segs} Segmente (min=${min}, max=${max})`);
+    // Zeige Segmentbreite und Anzahl in der Zusammenfassung
+    lines.push(`Bereich ${A}–${B} → ${segs} Segmente (Breite=${size}, min=${min}, max=${max})`);
     const limit = segs > 15 ? 15 : segs;
     for(let i=0; i<limit; i++){
       const start = A + i*size;
@@ -1851,6 +1862,7 @@ function togglePatternBox(){
   const btnAgentGo = document.getElementById('agentGo');
   if(btnAgentGo){
     btnAgentGo.addEventListener('click', function(){
+      // Prüfe Archiv
       if(!g_draws.length){ alert('Bitte zuerst Archiv laden'); return; }
       const A = +($('#rangeFrom').value || 0);
       const B = +($('#rangeTo').value || 0);
@@ -1860,9 +1872,8 @@ function togglePatternBox(){
       const agentResults = document.getElementById('agentResults');
       if(agentResults) agentResults.innerHTML = '';
       if(agentInfo){ agentInfo.style.display=''; agentInfo.textContent='Analysiere Archiv…'; }
-      const strategy = $('#agentStrategy').value || 'topfreq';
       const nRes = Math.max(1, Math.min(20, parseInt($('#agentCount').value || '3', 10)));
-      // Hilfsfunktionen
+      // Hilfsfunktionen und Daten vorbereiten
       const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
       const maxOv = parseInt($('#maxOv').value || '0', 10);
       const rangeRulesOn = $('#useRangeRules').checked;
@@ -1873,32 +1884,46 @@ function togglePatternBox(){
         if(!rangeRulesOn) return true;
         const segs = Math.floor((B - A) / segSize) + 1;
         const counts = Array(segs).fill(0);
-        for(const v of arr){
-          const idx = Math.floor((v - A) / segSize);
-          counts[idx]++;
-        }
+        for(const v of arr){ counts[Math.floor((v - A) / segSize)]++; }
         for(let i=0;i<segs;i++){
           if(counts[i] < segMin) return false;
           if(counts[i] > segMax) return false;
         }
         return true;
       };
+      // Häufigkeit & Recency berechnen
       const freq = computeFreqRange(A,B);
-      const freqPairs = [];
-      for(let i=0; i<freq.length; i++){ freqPairs.push({ num: A + i, count: freq[i] }); }
-      freqPairs.sort((a,b) => b.count - a.count || a.num - b.num);
       const topPairs = computeTopPairsRange(A,B, Math.min(10, S));
-      const results = [];
+      // Recency: wie viele Ziehungen seit dem letzten Auftreten (je größer, desto länger nicht gezogen)
+      const rec = (()=>{
+        const n=B-A+1, last=Array(n).fill(-1);
+        for(let d=0; d<g_draws.length; d++){
+          for(const v of g_draws[d]){
+            if(v<A||v>B) continue;
+            const idx=v-A; last[idx]=d;
+          }
+        }
+        return last.map(x=> x<0 ? g_draws.length : (g_draws.length-1-x));
+      })();
+      // Score: kombiniere Häufigkeit (je höher, desto häufiger) und Recency (je höher, desto länger nicht gezogen)
+      const scores = [];
+      for(let i=0;i<freq.length;i++){
+        const f = freq[i];
+        const r = rec[i];
+        // Gewichtung: häufige Zahlen etwas stärker, aber lange nicht gezogene Zahlen ebenfalls berücksichtigen
+        const sVal = f*1.0 + (r/5);
+        scores.push({ num: A + i, score: sVal, freq: f, rec: r });
+      }
+      scores.sort((a,b) => b.score - a.score || a.num - b.num);
+      // Hilfsfunktionen
       const usedSets = new Set();
+      const results = [];
       const covered = new Set();
       const rngSeed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
       let seed = rngSeed;
-      const rand = rng(seed);
-      // Funktionshelfer zum Prüfen auf Überschneidung
+      // valid check
       function isValid(arr){
-        // Prüfe Rangeregeln
         if(!respects(arr)) return false;
-        // Prüfe Überschneidung
         const bits = toBitMask(arr);
         if(!validAgainstBits(drawsBits, bits, maxOv)) return false;
         return true;
@@ -1910,145 +1935,118 @@ function togglePatternBox(){
           results.push(arr);
         }
       }
-      // Erzeuge Vorschläge entsprechend der gewählten Strategie
-      if(strategy === 'topfreq'){
-        // Nimm die häufigsten Zahlen der Reihe nach, rollierend, um Varianten zu erzeugen
-        const nums = freqPairs.map(it => it.num);
-        for(let i=0; i<nRes; i++){
-          const start = i * S;
-          const seg = nums.slice(start, start + S);
-          if(seg.length < S){ // wrap-around
-            const rest = S - seg.length;
-            seg.push(...nums.slice(0, rest));
-          }
-          const cand = seg.slice(0, S).sort((a,b)=>a-b);
-          if(isValid(cand)) addResult(cand);
-          if(results.length >= nRes) break;
-        }
-      } else if(strategy === 'toppairs'){
-        // Baue aus den häufigsten Paaren jeweils eine Kombination
-        for(const tp of topPairs){
-          if(results.length >= nRes) break;
-          const set = new Set(tp.pair);
-          for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
-          let arr = Array.from(set).sort((a,b) => a - b);
-          if(arr.length < S){
-            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
-            arr.sort((a,b) => a - b);
-            arr = arr.slice(0,S);
-          }
-          if(isValid(arr)) addResult(arr);
-        }
-        // Falls nicht genug Paare gefunden wurden, ergänze mit topfreq
-        let idx = 0;
-        while(results.length < nRes && idx < freqPairs.length){
-          const arr = freqPairs.slice(idx, idx + S).map(it => it.num);
-          if(arr.length < S){
-            const rest = S - arr.length;
-            arr.push(...freqPairs.slice(0, rest).map(it => it.num));
-          }
-          const cand = arr.slice(0, S).sort((a,b) => a-b);
-          if(isValid(cand)) addResult(cand);
-          idx += S;
-        }
-      } else if(strategy === 'coverage'){
-        // Coverage: verteile die Zahlen so, dass über alle Varianten möglichst viele unterschiedliche Zahlen vorkommen
-        for(let vi=0; vi<nRes; vi++){
-          let best = null;
-          for(let t=0; t<2000; t++){
-            const weights = [];
-            for(let v=A; v<=B; v++){
-              let w = 1;
-              if(covered.has(v)) w *= 0.3;
-              w *= (freq[v - A] + 1);
-              weights.push(w);
-            }
-            const cand = weightedSpreadPick(A,B,S,weights,rng(seed++));
-            if(!isValid(cand)) continue;
-            const newCount = cand.filter(v => !covered.has(v)).length;
-            if(!best || newCount > best.newCount){ best = { cand, newCount }; }
-            if(best && best.newCount === S) break;
-          }
-          if(best){
-            addResult(best.cand);
-            for(const v of best.cand) covered.add(v);
-          } else {
-            // Fallback: nimm die häufigsten noch nicht verwendeten Zahlen
-            const arr = [];
-            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
-            while(arr.length < S){
-              const randIdx = Math.floor(rand() * freqPairs.length);
-              const v = freqPairs[randIdx].num;
-              if(!arr.includes(v)) arr.push(v);
-            }
-            arr.sort((a,b) => a - b);
-            if(isValid(arr)) addResult(arr);
-            for(const v of arr) covered.add(v);
-          }
-          if(results.length >= nRes) break;
-        }
-      } else if(strategy === 'hotgroups'){
-        // Nutze die im Hot‑Gruppen‑Modul berechneten Gruppen (g_hotGroups) als Kern
-        const groups = g_hotGroups.slice(0, Math.max(1,nRes));
-        for(const g of groups){
-          if(results.length >= nRes) break;
-          const set = new Set(g);
-          for(const item of freqPairs){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
-          let arr = Array.from(set).sort((a,b) => a - b);
-          if(arr.length < S){
-            for(const item of freqPairs){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
-            arr.sort((a,b) => a - b);
-            arr = arr.slice(0,S);
-          }
-          if(isValid(arr)) addResult(arr);
-        }
-        // Fallback: zufällige Kombinationen aus Topfreq
-        let idx = 0;
-        while(results.length < nRes && idx < freqPairs.length){
-          const arr = freqPairs.slice(idx, idx + S).map(it => it.num);
-          if(arr.length < S){
-            const rest = S - arr.length;
-            arr.push(...freqPairs.slice(0, rest).map(it => it.num));
-          }
-          const cand = arr.slice(0, S).sort((a,b) => a-b);
-          if(isValid(cand)) addResult(cand);
-          idx += S;
-        }
-      } else {
-        // Zufall
-        for(let i=0; i<nRes*5 && results.length < nRes; i++){
-          const cand = [];
-          const pool = [];
-          for(let v=A; v<=B; v++) pool.push(v);
-          const r = rng(seed++);
-          while(cand.length < S && pool.length){
-            const idx = Math.floor(r() * pool.length);
-            cand.push(pool.splice(idx,1)[0]);
-          }
-          cand.sort((a,b) => a - b);
-          if(isValid(cand)) addResult(cand);
-        }
-      }
-      // Falls immer noch weniger als nRes Ergebnisse, fülle mit Topfreq
-      let fillIdx = 0;
-      while(results.length < nRes){
-        const arr = freqPairs.slice(fillIdx, fillIdx + S).map(it => it.num);
-        if(arr.length < S){
-          const rest = S - arr.length;
-          arr.push(...freqPairs.slice(0, rest).map(it => it.num));
-        }
-        const cand = arr.slice(0, S).sort((a,b) => a-b);
+      // 1. Strategie: aus Scores rollierend wählen
+      const numsByScore = scores.map(it => it.num);
+      for(let i=0; i<nRes && results.length < nRes; i++){
+        const start = i * S;
+        let seg = numsByScore.slice(start, start + S);
+        if(seg.length < S){ seg = seg.concat(numsByScore.slice(0, S - seg.length)); }
+        const cand = seg.slice(0,S).sort((a,b)=>a-b);
         if(isValid(cand)) addResult(cand);
-        fillIdx += S;
-        if(fillIdx > freqPairs.length) break;
       }
-      // Ausgabe
+      // 2. Strategie: Top‑Paare nutzen
+      for(const tp of topPairs){
+        if(results.length >= nRes) break;
+        const set = new Set(tp.pair);
+        for(const item of scores){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+        let arr = Array.from(set).sort((a,b)=>a-b);
+        if(arr.length < S){
+          for(const item of scores){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+          arr.sort((a,b)=>a-b);
+          arr = arr.slice(0,S);
+        }
+        if(isValid(arr)) addResult(arr);
+      }
+      // 3. Strategie: Coverage/Random gewichtet, falls noch nicht genug Ergebnisse
+      for(let vi=0; vi<nRes && results.length < nRes; vi++){
+        let best = null;
+        // Versuche einige zufällige Varianten mit Gewichtung nach Scores
+        for(let t=0; t<1500; t++){
+          const weights = scores.map(it => it.score + 1e-3);
+          const cand = weightedSpreadPick(A,B,S,weights,rng(seed++));
+          if(!isValid(cand)) continue;
+          // Bessere Bewertung: wie viele neue Zahlen bringt diese Kombi?
+          const newCount = cand.filter(v => !covered.has(v)).length;
+          if(!best || newCount > best.newCount){ best = { cand, newCount }; if(newCount === S) break; }
+        }
+        if(best){
+          addResult(best.cand);
+          for(const v of best.cand) covered.add(v);
+        }
+      }
+      // 4. Strategie: Musteranalyse aus den vorhandenen Ziehungen
+      // Wir analysieren die häufigsten Differenzen (Abstände) von Ziehungen im aktuellen Bereich A–B,
+      // um mögliche Gap-Muster zu erkennen. Für jede Ziehung wird ein gleitendes Fenster der Länge S
+      // betrachtet, aus dem die Gaps zwischen aufeinanderfolgenden Zahlen ermittelt werden.
+      // Die häufigsten Gap-Muster dienen dann als Vorlage, um neue Kandidaten zu generieren.
+      if(results.length < nRes){
+        const gapCounts = new Map();
+        const windowSize = S;
+        for(const draw of g_draws){
+          const arr = draw.filter(v => v>=A && v<=B).sort((a,b) => a - b);
+          if(arr.length >= windowSize){
+            for(let i=0; i <= arr.length - windowSize; i++){
+              const slice = arr.slice(i, i + windowSize);
+              const gaps = [];
+              for(let j=0; j < slice.length - 1; j++){
+                gaps.push(slice[j+1] - slice[j]);
+              }
+              const key = gaps.join(',');
+              gapCounts.set(key, (gapCounts.get(key) || 0) + 1);
+            }
+          }
+        }
+        const gapList = Array.from(gapCounts.entries()).sort((a,b) => b[1] - a[1]).slice(0, 8)
+          .map(([key,count]) => key.split(',').map(x => parseInt(x,10)));
+        // Nutze die Häufigkeitsliste als Gewicht für die Auswahl der Gaps.
+        for(const gaps of gapList){
+          if(results.length >= nRes) break;
+          const inc = gaps.reduce((acc, v) => acc + v, 0);
+          // Finde eine gute Startposition: minimaler Summen-Frequenzscore
+          let bestStart = null;
+          let bestCost = Infinity;
+          for(let s = A; s <= B - inc; s++){
+            const seq = [s];
+            let cur = s;
+            let cost = 0;
+            cost += freq[cur - A] || 0;
+            for(const g of gaps){ cur += g; cost += freq[cur - A] || 0; seq.push(cur); }
+            if(cost < bestCost){ bestCost = cost; bestStart = s; }
+          }
+          if(bestStart !== null){
+            const cand = [];
+            let cur = bestStart;
+            cand.push(cur);
+            for(const g of gaps){ cur += g; cand.push(cur); }
+            cand.sort((a,b) => a - b);
+            if(cand.length === S && isValid(cand)){
+              addResult(cand);
+              for(const v of cand) covered.add(v);
+            }
+          }
+        }
+      }
+
+      // 5. Fallback: fülle mit Topfreq falls immer noch weniger
+      if(results.length < nRes){
+        let fillIdx = 0;
+        while(results.length < nRes){
+          const arr = numsByScore.slice(fillIdx, fillIdx + S);
+          let cand = arr;
+          if(cand.length < S) cand = cand.concat(numsByScore.slice(0, S - cand.length));
+          cand = cand.slice(0,S).sort((a,b)=>a-b);
+          if(isValid(cand)) addResult(cand);
+          fillIdx += S;
+          if(fillIdx > numsByScore.length) break;
+        }
+      }
+      // Ergebnisse ausgeben
       if(agentResults && results.length){
         const frag = document.createDocumentFragment();
         results.slice(0,nRes).forEach((arr,i) => {
           const div = document.createElement('div');
           div.className = 'resItem';
-          div.innerHTML = '<span class="resNums">Agent Vorschlag ' + (i + 1) + ' → ' + arr.join(' ') + '</span>';
+          div.innerHTML = '<span class="resNums">Agent Vorschlag ' + (i+1) + ' → ' + arr.join(' ') + '</span>';
           frag.appendChild(div);
         });
         agentResults.appendChild(frag);
