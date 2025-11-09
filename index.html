@@ -387,6 +387,7 @@
         <select id="agentStrategy">
           <option value="standard" selected>Standard</option>
           <option value="experimental">Experimentell</option>
+          <option value="recency">Recency</option>
         </select>
       </div>
       <div style="flex:1 1 180px;display:flex;align-items:flex-end;gap:8px">
@@ -1568,7 +1569,10 @@ function togglePatternBox(){
       if(thrB!==null && ov>=thrB) cB++;
       if(ov===tip.length) cFull++;
     }
-    const hits=matchedHotGroups(tip);
+    // Nur Hot‑Gruppen hervorheben, wenn sie aktiv sind (Checkbox "Häufige Gruppen" gesetzt)
+    let hits=[];
+    const hotOn = document.getElementById('useHotGroups')?.checked;
+    if(hotOn){ hits = matchedHotGroups(tip); }
     const hotSet=new Set(hits.flat());
     const tipHTML = tip.map(n=> hotSet.has(n) ? `<span class="hotnum">${n}</span>` : String(n)).join(" ");
     const out=[];
@@ -1982,14 +1986,27 @@ function togglePatternBox(){
         const sVal = f*1.0 + (r/5);
         scores.push({ num: A + i, score: sVal, freq: f, rec: r });
       }
+      // Sortierung nach kombiniertem Score (Standard/Experimentell) – Standard: häufige + Recency
       scores.sort((a,b) => b.score - a.score || a.num - b.num);
+      // Für den Recency‑Modus: Kopie der Scores nach längster Abstinenz sortieren (je größer rec, desto besser)
+      const scoresRec = scores.slice().sort((a,b) => b.rec - a.rec || a.num - b.num);
       // Hilfsfunktionen
       const usedSets = new Set();
       const results = [];
       const covered = new Set();
       // Lese den Seed als String und hashe ihn auf 32‑Bit, damit auch sehr große Seeds funktionieren.
-      const rngSeed = parseSeedVal($('#seed').value || '1');
-      let seed = rngSeed;
+      // Der Start‑Seed für den Agenten kombiniert den Benutzer‑Seed mit einer laufzeitabhängigen Komponente,
+      // um zufälligere Ergebnisse bei wiederholten Läufen zu erzeugen. Dadurch werden stets andere
+      // Varianten gefunden, selbst wenn derselbe Seed eingegeben wurde.
+      let rngSeed = parseSeedVal($('#seed').value || '1');
+      // XOR mit der aktuellen Zeit (Millis) und, falls verfügbar, einer kryptografischen Zufallszahl
+      rngSeed ^= (Date.now() & 0xffffffff);
+      if(window.crypto && crypto.getRandomValues){
+        const tmp = new Uint32Array(1);
+        crypto.getRandomValues(tmp);
+        rngSeed ^= tmp[0];
+      }
+      let seed = rngSeed >>> 0;
       // valid check
       function isValid(arr){
         if(!respects(arr)) return false;
@@ -2004,12 +2021,13 @@ function togglePatternBox(){
           results.push(arr);
         }
       }
+      // Erstelle eine Basisliste der Zahlen abhängig vom Agent‑Modus.
+      const baseNums = (strategy === 'recency') ? scoresRec.map(it => it.num) : scores.map(it => it.num);
       // 1. Strategie: aus Scores rollierend wählen
-      const numsByScore = scores.map(it => it.num);
       for(let i=0; i<nRes && results.length < nRes; i++){
         const start = i * S;
-        let seg = numsByScore.slice(start, start + S);
-        if(seg.length < S){ seg = seg.concat(numsByScore.slice(0, S - seg.length)); }
+        let seg = baseNums.slice(start, start + S);
+        if(seg.length < S){ seg = seg.concat(baseNums.slice(0, S - seg.length)); }
         const cand = seg.slice(0,S).sort((a,b)=>a-b);
         if(isValid(cand)) addResult(cand);
       }
@@ -2096,17 +2114,17 @@ function togglePatternBox(){
         }
       }
 
-      // 5. Fallback: fülle mit Topfreq falls immer noch weniger
+      // 5. Fallback: fülle mit Topfreq (bzw. Basisliste) falls immer noch weniger
       if(results.length < nRes){
         let fillIdx = 0;
         while(results.length < nRes){
-          const arr = numsByScore.slice(fillIdx, fillIdx + S);
+          const arr = baseNums.slice(fillIdx, fillIdx + S);
           let cand = arr;
-          if(cand.length < S) cand = cand.concat(numsByScore.slice(0, S - cand.length));
+          if(cand.length < S) cand = cand.concat(baseNums.slice(0, S - cand.length));
           cand = cand.slice(0,S).sort((a,b)=>a-b);
           if(isValid(cand)) addResult(cand);
           fillIdx += S;
-          if(fillIdx > numsByScore.length) break;
+          if(fillIdx > baseNums.length) break;
         }
       }
 
