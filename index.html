@@ -29,6 +29,8 @@
   }
   h1,h2,h3,h4,h5,h6{
     font-family:'Orbitron', sans-serif;
+    /* Leichter Neon-Schimmer für Überschriften */
+    text-shadow: 0 0 4px var(--accent2), 0 0 8px var(--accent);
   }
   a{color:#93c5fd;text-decoration:none}
   .box{max-width:1140px;margin:0 auto}
@@ -48,15 +50,12 @@
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>div{flex:1 1 220px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0 0}
+  .panel{background:linear-gradient(180deg, rgba(20,33,61,0.95) 0%, rgba(10,17,40,0.95) 100%);border:1px solid var(--border);border-radius:14px;padding:16px;margin:14px 0 0;box-shadow:0 4px 10px rgba(0,0,0,0.4);transition:transform 0.3s, box-shadow 0.4s;}
   /* Schlagschatten für die Panels für einen moderneren Look */
-  .panel{
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    transition:transform 0.2s, box-shadow 0.3s;
-  }
+  /* Panel Hover-Effekt: sanftes Schweben mit Neon-Schimmer */
   .panel:hover{
-    transform:translateY(-2px);
-    box-shadow:0 6px 10px rgba(0,0,0,0.35);
+    transform:translateY(-3px);
+    box-shadow:0 8px 14px rgba(0,0,0,0.45), 0 0 10px var(--accent2);
   }
   .ph{display:flex;align-items:center;gap:10px;margin:0 0 8px}
   .emoji{font-size:22px}
@@ -303,17 +302,8 @@
         <label>Seed‑Formel</label>
         <select id="seedFormula">
           <option value="crypto" selected>Krypto‑Zufall</option>
-          <option value="pi">Pi‑Ziffern</option>
           <option value="fib">Fibonacci</option>
           <option value="prime">Primzahl</option>
-          <option value="fac">Fakultät</option>
-          <option value="lucas">Lucas</option>
-          <option value="tri">Dreieckszahl</option>
-          <option value="square">Quadratzahl</option>
-          <option value="cat">Catalan</option>
-          <option value="pell">Pell</option>
-          <option value="trib">Tribonacci</option>
-          <option value="bell">Bell‑Zahl</option>
         </select>
         <div class="hint">Mathematische Basis für den automatisch erzeugten Seed</div>
       </div>
@@ -1327,7 +1317,8 @@ function togglePatternBox(){
         const strategy = p.strategy || 'random';
         const rangeRulesOn = !!p.rangeRulesOn;
         const segSize = p.segSize|0, segMin = p.segMin|0, segMax = p.segMax|0;
-        const baseSeed = (p.seed>>>0) || 1;
+        // Kombiniere den übergebenen Seed mit einem zufälligen Salt, um mehr Varianz zu erzeugen
+        const baseSeed = (((p.seed>>>0) ^ ((p.seedSalt || 0)>>>0)) >>> 0) || 1;
         const rand = rng(baseSeed);
         if(p.mode==='pattern' || strategy==='pattern'){
           const gaps=p.gaps||[];
@@ -1519,6 +1510,13 @@ function togglePatternBox(){
       }
     }catch(err){ console.error('Seed‑Formel konnte nicht angewendet werden:', err); }
 
+    // Erzeuge zusätzlich einen Zufalls-Salt für den Seed, um bei jedem Lauf unterschiedliche
+    // Startwerte im Worker zu erhalten. Dadurch ist der Zufallsmodus weniger vorhersehbar.
+    let seedSalt32 = 0;
+    try{
+      if(window.crypto && crypto.getRandomValues){ const tmp = new Uint32Array(1); crypto.getRandomValues(tmp); seedSalt32 = tmp[0]>>>0; }
+      else{ seedSalt32 = (Math.random()*0xFFFFFFFF)>>>0; }
+    }catch{ seedSalt32 = (Math.random()*0xFFFFFFFF)>>>0; }
     const params = {
       A,B,S:Ssize,maxOv,
       drawsBits: buildDrawBits(A,B),
@@ -1526,7 +1524,8 @@ function togglePatternBox(){
       want:+$("#want").value,
       level,
       budgetSec,
-      seed: parseSeedVal($("#seed").value)
+      seed: parseSeedVal($("#seed").value),
+      seedSalt: seedSalt32
     };
     const genModeUI = $("#genMode").value || "random";
     if(!usePat){
