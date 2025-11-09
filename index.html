@@ -6,8 +6,17 @@
 <title>KENO – Kombinationen, Muster & Hot-Gruppen (Maximum fähig)</title>
 <style>
   :root{
-    --bg:#0b1220; --panel:#111827; --border:#223046; --muted:#263041; --text:#e5e7eb;
-    --accent:#22c55e; --accent2:#60a5fa; --warm:#fb923c; --danger:#ef4444;
+  /* Farben für eine modernere, kontrastreichere Darstellung */
+    /* Farben angepasst für ein helleres, moderneres Design */
+    --bg: #112b53;       /* leicht aufgehellter dunkler Hintergrund */
+    --panel: #1b4880;    /* sanfter Blauton für Panels */
+    --border: #4e6b99;   /* hellerer Rand */
+    --muted: #355a92;    /* Hintergrund für Eingaben und Karten */
+    --text: #f5f8ff;     /* helles Grau für Texte */
+    --accent: #6fd8b5;   /* frischeres Grün für Highlights */
+    --accent2: #6bbcf8;  /* lebendiges Hellblau für Sekundär‑Panels */
+    --warm: #fbb15f;     /* warmes Orange für Hinweise */
+    --danger: #f66a6b;   /* weicheres Rot für Warnungen */
   }
   html,body{height:100%}
   body{margin:0;padding:16px;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
@@ -25,6 +34,10 @@
   .row>div{flex:1 1 220px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
   .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0 0}
+  /* Schlagschatten für die Panels für einen moderneren Look */
+  .panel{
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+  }
   .ph{display:flex;align-items:center;gap:10px;margin:0 0 8px}
   .emoji{font-size:22px}
   .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--muted);background:var(--bg);margin-left:8px}
@@ -51,6 +64,26 @@
   .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg);border:1px solid var(--muted);border-radius:999px;padding:4px 6px}
   .chip .val{min-width:18px;text-align:center}
   .chip button{padding:4px 8px;border-radius:999px;font-weight:800;line-height:1}
+
+  /* Wenn Muster deaktiviert ist, wird der Muster‑Editor ausgegraut und nicht klickbar */
+  .pattern-disabled{
+    opacity:0.5;
+    /* Hinweise darstellen, aber Buttons bleiben nutzbar */
+    filter:grayscale(30%);
+  }
+
+  /* Statistiken Balken-Ansicht */
+  .stat-item{display:flex;align-items:center;margin-bottom:4px;font-size:14px;}
+  .stat-num{width:32px;text-align:right;margin-right:6px;font-weight:bold;}
+  .stat-bar{flex:1;height:10px;background:var(--muted);border-radius:4px;overflow:hidden;margin-right:6px;position:relative;}
+  .stat-bar div{height:100%;background:var(--accent);}
+  .stat-count{width:60px;text-align:left;font-size:12px;color:#9ca3af;}
+
+  /* Bereichsregel-Map */
+  .range-map{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .range-seg{flex:1 1 50px;min-width:60px;background:var(--muted);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:center;line-height:1.2}
+  .range-seg .seg-label{font-weight:bold;display:block}
+  .range-seg .seg-details{font-size:10px;color:#9ca3af;display:block}
 </style>
 </head>
 <body>
@@ -118,8 +151,14 @@
 
   <!-- 🧩 Muster -->
   <div class="panel" id="p-pattern" style="border-left:6px solid var(--warm)">
-    <div class="ph"><span class="emoji">🧩</span><h2 style="margin:0">Muster-Abstände</h2><span class="pill">S = Abstände + 1</span></div>
+    <div class="ph" style="display:flex;align-items:center;gap:10px">
+      <span class="emoji">🧩</span><h2 style="margin:0">Muster-Abstände</h2><span class="pill">S = Abstände + 1</span>
+      <!-- Button zum Ein-/Ausblenden des Muster-Editors -->
+      <button id="patternToggle" class="ghost" style="margin-left:auto">Editor ein-/ausblenden</button>
+    </div>
     <label><input type="checkbox" id="usePattern"> Muster verwenden</label>
+    <!-- Der Muster-Editor wird immer eingeblendet; er kann per Button ein-/ausgeblendet werden -->
+    <!-- Der Muster-Editor ist standardmäßig ausgeblendet und kann per Button ein- oder ausgeblendet werden -->
     <div id="patternBox" style="display:none">
       <label>Aktuelles Muster (read-only)</label>
       <div id="gapLine" class="mono" style="margin:4px 0 8px;opacity:.9">[ ]</div>
@@ -162,13 +201,16 @@
     </label>
     <div id="hotBox" style="display:none">
       <div class="row">
-        <div><label>Rückblick Ziehungen</label><input type="number" id="hotWindow" value="500" min="50" max="50000"></div>
+        <div>
+          <label>Rückblick Ziehungen</label>
+          <!-- Anzeige der Anzahl der Ziehungen im Archiv. Wird nach dem Laden aktualisiert. -->
+          <div id="hotWindowDisplay" class="status" style="padding:4px;min-width:80px;">0</div>
+        </div>
         <div><label>Gruppengröße</label>
           <select id="hotK">
             <option value="2" selected>2 (Paare)</option>
             <option value="3">3</option>
             <option value="4">4</option>
-            <option value="5">5</option>
           </select>
         </div>
         <div><label>Top N</label><input type="number" id="hotTopN" value="30" min="5" max="1000"></div>
@@ -185,8 +227,11 @@
           <div id="hotHardWrap" class="hint" style="display:none;margin-top:6px">
             Hard-Zeit: 
             <select id="hotHardBudget">
+              <option value="2">≈ 2 min</option>
               <option value="5" selected>≈ 5 min</option>
               <option value="10">≈ 10 min</option>
+              <option value="15">≈ 15 min</option>
+              <option value="30">≈ 30 min</option>
               <option value="max">Maximum (ganze Historie)</option>
             </select>
           </div>
@@ -208,23 +253,21 @@
     <div class="ph"><span class="emoji">🧮</span><h2 style="margin:0">Kombinationen generieren</h2></div>
     <div class="row">
       <div><label>Wieviele Ergebnisse</label><input type="number" id="want" value="10" min="1" max="2000"></div>
-      <div><label>Max. Versuche (Basis, Normal)</label><input type="number" id="tries" value="60000" min="1000" step="1000"></div>
-      <div><label>Seed</label><input type="number" id="seed" value="1" min="0"></div>
+      <div><label>Seed
+        <span class="hint" style="display:block;font-weight:normal">Startwert des Zufallszahlengenerators – gleiche Seeds liefern identische Ergebnisse (ähnlich wie bei echten KENO‑Ziehungen)</span>
+      </label>
+        <input type="number" id="seed" value="1" min="0"></div>
       <div>
-        <label>Suche-Stufe</label>
-        <select id="genLevel">
-          <option value="normal" selected>Normal</option>
-          <option value="medium">Mittel</option>
-          <option value="hard">Hard</option>
+        <label>Zeitlimit</label>
+        <select id="genTime">
+          <option value="2">≈ 2&nbsp;min</option>
+          <option value="5" selected>≈ 5&nbsp;min</option>
+          <option value="10">≈ 10&nbsp;min</option>
+          <option value="15">≈ 15&nbsp;min</option>
+          <option value="30">≈ 30&nbsp;min</option>
+          <option value="max">Maximales Limit</option>
         </select>
-        <div id="genHardWrap" class="hint" style="display:none;margin-top:6px">
-          Hard-Zeit:
-          <select id="genHardBudget">
-            <option value="5" selected>≈ 5 min</option>
-            <option value="10">≈ 10 min</option>
-            <option value="max">Maximum</option>
-          </select>
-        </div>
+        <div class="hint">Nur relevant bei Zufall/Hot‑Paare/Frequenz</div>
       </div>
     </div>
     <div class="row" style="margin-top:10px">
@@ -242,16 +285,17 @@
       <div>
         <label>Generator-Modus</label>
         <select id="genMode">
-          <option value="random" selected>Zufall (wie bisher)</option>
+          <option value="random" selected>Zufall (kein Muster)</option>
           <option value="freq">Frequenz-basiert (häufige Zahlen bevorzugen)</option>
-          <option value="hotpairs">Hot-Paare (Top-Paare erzwingen/gewichten)</option>
+          <option value="hotpairs">Hot-Paare (Top-Paare bevorzugen/erzwingen)</option>
         </select>
-        <div class="hint">Gilt nur wenn <b>kein Muster</b> genutzt wird.</div>
+        <div class="hint">Gilt nur, wenn <b>kein Muster</b> genutzt wird.</div>
       </div>
       <div id="hotPairsBox" style="display:none">
-        <label>Hot-Paare Optionen</label>
+        <label>Hot-Paare Einstellungen</label>
         <div class="row">
-          <div><label>Fenster (Ziehungen)</label><input type="number" id="hpWindow" value="500" min="50" max="50000"></div>
+          <!-- Fenster-Anzeige ersetzt das Eingabefeld. Es zeigt die Archivgröße an und ist nicht editierbar. -->
+          <div><label>Fenster (Ziehungen)</label><div id="hpWindowDisplay" class="status" style="padding:4px;min-width:80px">0</div></div>
           <div><label>Top-N Paare</label><input type="number" id="hpTopN" value="50" min="5" max="2000"></div>
           <div><label>Mind. Paar-Treffer</label><input type="number" id="hpMinPairs" value="1" min="0" max="5"></div>
           <div><label>Gewichtung</label>
@@ -273,13 +317,14 @@
     </label>
     <div id="rangeRulesBox" style="display:none">
       <div class="row">
-        <div><label>Segment-Breite</label><input type="number" id="segSize" value="10" min="2" max="50"></div>
+        <div><label>Segment-Länge (Anzahl Zahlen)</label><input type="number" id="segSize" value="10" min="2" max="50"></div>
         <div><label>Min pro Segment</label><input type="number" id="segMin" value="0" min="0" max="10"></div>
         <div><label>Max pro Segment</label><input type="number" id="segMax" value="10" min="1" max="20"></div>
       </div>
       <div class="hint">Beispiel A=1, B=70, Breite=10 ⇒ Segmente 1-10, 11-20, … 61-70.</div>
       <!-- Dynamisch generierte Zusammenfassung der Bereichsregel -->
       <div id="rangeSummary" class="hint" style="margin-top:4px"></div>
+      <div id="rangeMap" class="range-map"></div>
     </div>
   </div>
 
@@ -294,25 +339,27 @@
     <div id="statsList" class="status" style="display:none;margin-top:6px"></div>
   </div>
 
-  <!-- 🎯 Mehrfach-Varianten -->
+
+  <!-- 🤖 Agent Mode -->
   <!--
-    Dieses Panel ermöglicht die Erstellung mehrerer voneinander unterschiedlicher Tippvarianten.
-    Die Varianten werden so generiert, dass sie möglichst viele unterschiedliche Zahlen abdecken,
-    um die Wahrscheinlichkeit eines Treffers über mehrere Tipps zu erhöhen. Standard sind 6 Varianten.
+    Der Agent‑Modus analysiert das geladene Archiv und schlägt automatisch eine oder mehrere Kombinationen
+    basierend auf häufigen Zahlen und häufigen Paaren vor. Er nutzt dabei alle verfügbaren Ziehungen,
+    um Kombinationen zu generieren, die theoretisch eine höhere Trefferwahrscheinlichkeit haben können.
   -->
-  <div class="panel" id="p-multi" style="border-left:6px solid var(--accent)">
-    <div class="ph"><span class="emoji">🎯</span><h2 style="margin:0">Mehrfach‑Varianten</h2></div>
-    <div class="row">
+  <div class="panel" id="p-agent" style="border-left:6px solid var(--accent2)">
+    <div class="ph"><span class="emoji">🤖</span><h2 style="margin:0">Agent‑Modus</h2></div>
+    <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
+    <div class="row" style="margin-top:6px">
       <div>
-        <label>Anzahl Varianten</label>
-        <input type="number" id="multiCount" value="6" min="2" max="20">
+        <label>Anzahl Vorschläge</label>
+        <input type="number" id="agentCount" value="3" min="1" max="20">
       </div>
       <div style="flex:1 1 180px;display:flex;align-items:flex-end">
-        <button id="makeMulti" class="secondary">Varianten generieren</button>
+        <button id="agentGo" class="primary">Agent starten</button>
       </div>
     </div>
-    <div id="multiInfo" class="status" style="display:none;margin-top:6px"></div>
-    <div id="multiResults" class="results"></div>
+    <div id="agentInfo" class="status" style="display:none;margin-top:6px"></div>
+    <div id="agentResults" class="results"></div>
   </div>
 
   <!-- 🧠 Tipp prüfen -->
@@ -381,6 +428,58 @@
   const FAV_KEY="keno_favorites_v1";
   const FAV_VISIBLE_KEY="keno_fav_visible_v1";
   const OFFICIAL_ZIP_URL = "https://www.lotto-bayern.de/static/gamebroker_2/de/download_files/archiv_keno.zip";
+
+  // Eingebettetes Beispielarchiv (als Fallback bei fehlendem Netzwerk). 50 Zeilen mit jeweils 10 Zahlen
+  const SAMPLE_ARCHIVE_RAW = `6 34 50 51 52 54 59 63 66 69
+7 9 18 28 37 39 46 49 62 65
+7 10 13 19 31 33 36 40 43 69
+4 27 34 41 46 52 56 57 59 62
+1 2 12 21 32 43 46 47 52 64
+6 9 12 19 21 25 29 31 57 58
+14 16 35 38 39 43 53 60 63 66
+12 13 19 27 31 37 41 50 57 67
+5 9 10 12 17 24 34 57 60 61
+5 11 18 28 29 31 36 38 51 54
+11 13 15 16 42 43 46 55 63 64
+3 4 15 22 28 29 35 43 48 53
+4 6 10 13 16 19 29 39 41 70
+3 5 12 13 15 16 48 51 62 68
+3 5 8 13 16 17 27 54 55 62
+3 8 10 24 29 30 33 39 45 56
+13 14 22 26 34 44 45 46 51 61
+1 8 12 16 21 33 43 44 57 69
+10 33 36 40 45 46 50 53 61 66
+2 6 11 16 18 31 36 43 49 59
+6 17 37 40 42 46 50 54 64 70
+1 21 25 29 31 43 46 57 58 69
+5 6 17 22 45 52 54 58 69 70
+1 5 20 21 54 58 63 64 68 70
+2 7 11 17 25 26 44 54 60 61
+1 2 8 13 28 39 41 54 64 68
+2 6 13 24 26 36 39 41 51 61
+10 15 18 33 36 45 56 58 66 68
+3 6 27 34 37 41 47 59 61 69
+6 19 23 25 27 38 48 56 59 64
+2 6 18 20 22 35 43 44 46 48
+5 6 9 20 21 26 35 36 38 47
+7 15 23 31 34 38 40 47 55 62
+7 10 14 36 39 43 52 54 59 69
+15 16 28 32 44 45 61 62 68 70
+5 6 12 20 22 39 43 49 52 70
+2 8 13 19 26 29 34 36 50 51
+11 17 28 29 38 48 50 55 58 63
+4 9 15 22 25 29 34 46 56 58
+6 14 16 26 27 33 51 52 61 64
+7 14 19 20 26 32 39 47 49 59
+19 32 41 42 43 52 55 64 66 67
+2 5 10 26 29 34 41 42 44 56
+9 11 20 33 34 38 49 56 59 61
+2 6 9 17 29 39 49 55 68 70
+20 21 33 34 43 48 49 58 59 65
+5 10 12 27 35 38 39 55 58 67
+1 3 20 24 30 33 37 50 54 62
+9 25 33 34 39 43 52 53 63 64
+3 8 17 21 31 37 43 61 67 70`;
   const ARCHIVE_META_KEY = "keno_archive_meta_v1";
 
   let g_draws=[], g_drawSize=0, g_pattern=[];
@@ -466,6 +565,11 @@
 
     try{ localStorage.setItem(CACHE_KEY, JSON.stringify({draws:g_draws, drawSize:g_drawSize, savedAt:Date.now(), source:sourceLabel||""})); }catch{}
     text($("#statusTop"), `Archiv geladen: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize}) · ${detected}${sourceLabel?` · Quelle: ${sourceLabel}`:""}`);
+    // Aktualisiere die Anzeige für Rückblick‑Ziehungen (Hot‑Gruppen) und Hot‑Paare
+    const hotDisplay = document.getElementById('hotWindowDisplay');
+    if(hotDisplay) hotDisplay.textContent = g_draws.length.toString();
+    const hpDisp = document.getElementById('hpWindowDisplay');
+    if(hpDisp) hpDisp.textContent = g_draws.length.toString();
   }
   async function handleAnyFile(file){
     if(!file) return;
@@ -508,6 +612,11 @@
     g_draws=[]; g_drawSize=0;
     text($("#statusTop"), "Archiv gelöscht. Bitte Datei erneut laden.");
     $("#results").innerHTML=""; $("#resultStatus").style.display="none";
+    // Aktualisiere Hot‑Gruppen- und Hot‑Paare-Anzeigen nach dem Löschen
+    const hotDisplayDel = document.getElementById('hotWindowDisplay');
+    if(hotDisplayDel) hotDisplayDel.textContent = '0';
+    const hpDispDel = document.getElementById('hpWindowDisplay');
+    if(hpDispDel) hpDispDel.textContent = '0';
   });
 
   // Fetch with progress for auto-load
@@ -599,11 +708,23 @@
       $("#dlProg").style.display="none";
       if($("#useHotGroups").checked) recomputeHotGroups();
     }catch(e){
+      // Download fehlgeschlagen: Verstecke Fortschritt und lade eingebettetes Beispiel
       $("#dlProg").style.display="none";
       const hint = (String(e?.message||e).includes("TypeError")||String(e?.message||e).includes("Failed to fetch"))
         ? " (Hinweis: CORS-Fehler: Versuche einen Proxy oder lade manuell)"
         : "";
-      text($("#statusTop"), "Auto-Laden fehlgeschlagen: "+(e?.message||e)+hint);
+      text($("#statusTop"), "Auto-Laden fehlgeschlagen: "+(e?.message||e)+hint+". Verwende Beispiel-Daten …");
+      try{
+        loadArchiveFromRawText(SAMPLE_ARCHIVE_RAW, 'Beispiel');
+        // Anzeige aktualisieren
+        $("#dlProg").style.display = 'none';
+        if($("#useHotGroups").checked) recomputeHotGroups();
+        // Rückblick-Anzeige aktualisieren
+        const hwd = document.getElementById('hotWindowDisplay'); if(hwd) hwd.textContent = g_draws.length.toString();
+        const hpd = document.getElementById('hpWindowDisplay'); if(hpd) hpd.textContent = g_draws.length.toString();
+      }catch(err){
+        console.error(err);
+      }
     }
   }
 
@@ -626,6 +747,11 @@
           const ts=obj.savedAt?new Date(obj.savedAt):new Date();
           const src=obj.source?` · Quelle: ${obj.source}`:"";
           text($("#statusTop"), `Archiv aus Browser geladen: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize}) · gespeichert am ${ts.toLocaleDateString()} ${ts.toLocaleTimeString()}${src}`);
+          // Anzeige für Rückblick-Ziehungen aktualisieren
+          const hotDisplayInit = document.getElementById('hotWindowDisplay');
+          if(hotDisplayInit) hotDisplayInit.textContent = g_draws.length.toString();
+          const hpDispInit = document.getElementById('hpWindowDisplay');
+          if(hpDispInit) hpDispInit.textContent = g_draws.length.toString();
         }
       }
     }catch{}
@@ -681,7 +807,14 @@
     $("#sOut").textContent = "S = "+(g_pattern.length+1)+" Zahlen";
   }
   function savePattern(){ try{ localStorage.setItem(PATTERN_KEY, JSON.stringify(g_pattern)); }catch{} }
-  function togglePatternBox(){ const on=$("#usePattern").checked; $("#patternBox").style.display=on?"":"none"; try{ localStorage.setItem(USEPAT_KEY, on?"1":"0"); }catch{} }
+function togglePatternBox(){
+    const on = $("#usePattern").checked;
+    const box = $("#patternBox");
+    if(!box) return;
+    // Setze eine Klasse, die den Editor optisch deaktiviert, anstatt ihn zu verstecken
+    if(on){ box.classList.remove('pattern-disabled'); } else { box.classList.add('pattern-disabled'); }
+    try{ localStorage.setItem(USEPAT_KEY, on ? "1" : "0"); }catch{}
+  }
   $("#usePattern").addEventListener("change", togglePatternBox);
   $("#chips").addEventListener("click", e=>{
     const btn=e.target.closest("button[data-act]"); if(!btn) return;
@@ -706,6 +839,21 @@
   $("#gapAllMinus").addEventListener("click", ()=>incAll(-1));
   $("#gapShuffle").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(shuffle(g_pattern)); });
   $("#gapReverse").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(reverseArr(g_pattern)); });
+
+  // Ein-/Ausblenden des Muster-Editors über den Toggle-Button
+  const btnPatternToggle = document.getElementById('patternToggle');
+  if(btnPatternToggle){
+    btnPatternToggle.addEventListener('click', ()=>{
+      const box = document.getElementById('patternBox');
+      if(!box) return;
+      // Toggle display
+      if(box.style.display === 'none'){
+        box.style.display = '';
+      } else {
+        box.style.display = 'none';
+      }
+    });
+  }
 
   /* ===================== Varianten ===================== */
   function computeStats(A,B){
@@ -803,36 +951,46 @@
   /* ===================== Hard-UIs sichtbar/unsichtbar ===================== */
   function toggleHardUIs(){
     $("#hotHardWrap").style.display = ($("#searchLevel").value==="hard") ? "" : "none";
-    $("#genHardWrap").style.display = ($("#genLevel").value==="hard") ? "" : "none";
+    // Das Generator‑Zeitlimit wird über #genTime gewählt; eine separate Hard‑Wrap‑UI ist nicht mehr erforderlich.
   }
   $("#searchLevel").addEventListener("change", ()=>{ toggleHardUIs(); if($("#useHotGroups").checked) recomputeHotGroups(); });
   $("#hotHardBudget").addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
-  $("#genLevel").addEventListener("change", toggleHardUIs);
 
   /* ===================== Hot-Gruppen (inkl. k=5 Maximum 2-Pass) ===================== */
   function toggleHotBox(){ const on=$("#useHotGroups").checked; $("#hotBox").style.display=on?"":"none"; text($("#hotInfo"), on?"bereit":"inaktiv"); }
   $("#useHotGroups").addEventListener("change", ()=>{ toggleHotBox(); if($("#useHotGroups").checked) recomputeHotGroups(); });
-  ["hotWindow","hotK","hotTopN","hotMode"].forEach(id=>{ const el=document.getElementById(id); if(el) el.addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); }); });
+  ["hotK","hotTopN","hotMode"].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener("change", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
+  });
   $("#hotStart").addEventListener("click", ()=>{ if($("#useHotGroups").checked) recomputeHotGroups(); });
 
-  function hardBudgetSeconds(sel){ return sel==="5"? 300 : sel==="10"? 600 : Infinity; }
+  function hardBudgetSeconds(sel){
+    // Budgetauswahl (Minuten) in Sekunden umrechnen
+    if(sel === "2") return 120;
+    if(sel === "5") return 300;
+    if(sel === "10") return 600;
+    if(sel === "15") return 900;
+    if(sel === "30") return 1800;
+    return Infinity;
+  }
 
   function recomputeHotGroups(){
     if(!g_draws.length){ g_hotGroups=[]; text($("#hotInfo"),"aktiv: kein Archiv"); return; }
     const k=+($("#hotK").value||2);
     let topN=Math.max(5,Math.min(1000,+($("#hotTopN").value||30)));
     const level=$("#searchLevel").value||"normal";
-    let win=Math.max(50,+($("#hotWindow").value||500)); if(win>g_draws.length) win=g_draws.length;
-
+    // Für Hot‑Paare/Fünfer immer das gesamte Archiv nutzen
+    let win = g_draws.length;
     const LEVELS={ normal:{winMul:1.2, topMul:1.2}, medium:{winMul:1.6, topMul:1.8}, hard:{winMul:2.2, topMul:2.5} };
     const L=LEVELS[level]||LEVELS.normal;
-    win=Math.min(g_draws.length, Math.max(1, Math.floor(win*L.winMul)));
+    // Erweitere Top N je nach Stufe
     topN=Math.floor(topN*L.topMul);
 
     const hardSel = ($("#searchLevel").value==="hard");
     const budgetSec = (!hardSel) ? 0 : hardBudgetSeconds($("#hotHardBudget").value);
 
-    const fromIdx=Math.max(0,g_draws.length-win);
+    const fromIdx=0;
     const slice=g_draws.slice(fromIdx);
 
     if(hotWorker){ try{ hotWorker.terminate(); }catch{} hotWorker=null; }
@@ -993,21 +1151,58 @@
     info.push(`Bereich: ${A}-${B}`);
     $("#statsInfo").innerHTML = info.join('<br>');
     $("#statsInfo").style.display="";
-    // Statistikliste: Top-Zahlen mit Häufigkeit und Anteil
+    // Statistikliste: Top-Zahlen und Top-Paare mit Balkenvisualisierung
     const listEl = $("#statsList");
-    const sumCounts = freq.reduce((a,b)=>a+b,0) || 1;
-    // Paare {num, count}
-    const freqPairs = [];
-    for(let i=0;i<freq.length;i++){
-      freqPairs.push({ num: A+i, count: freq[i] });
-    }
-    freqPairs.sort((a,b)=> b.count - a.count || a.num - b.num);
-    const top = freqPairs.slice(0, Math.min(15, freqPairs.length));
-    const lines = top.map(it => {
-      const pct = (it.count / sumCounts * 100).toFixed(2);
-      return `${it.num}: ${it.count}× (${pct}%)`;
+    listEl.innerHTML = '';
+    // Berechne Top-Zahlen sortiert nach Häufigkeit
+    const entries = freq.map((count,i) => ({ num: A + i, count })).filter(e => e.count > 0);
+    entries.sort((a,b) => b.count - a.count || a.num - b.num);
+    const topNums = entries.slice(0, Math.min(12, entries.length));
+    // Top-Zahlen Container
+    const numContainer = document.createElement('div');
+    numContainer.innerHTML = '<b>Top-Zahlen:</b>';
+    const maxC = topNums.reduce((m,it) => Math.max(m, it.count), 1);
+    topNums.forEach(it => {
+      const item = document.createElement('div');
+      item.className = 'stat-item';
+      const numSpan = document.createElement('span');
+      numSpan.className = 'stat-num';
+      numSpan.textContent = it.num;
+      const bar = document.createElement('span');
+      bar.className = 'stat-bar';
+      const fill = document.createElement('div');
+      fill.style.width = ((it.count / maxC) * 100).toFixed(1) + '%';
+      bar.appendChild(fill);
+      const cnt = document.createElement('span');
+      cnt.className = 'stat-count';
+      cnt.textContent = it.count + '×';
+      item.appendChild(numSpan);
+      item.appendChild(bar);
+      item.appendChild(cnt);
+      numContainer.appendChild(item);
     });
-    listEl.innerHTML = lines.join('<br>');
+    listEl.appendChild(numContainer);
+    // Top-Paare
+    const pairContainer = document.createElement('div');
+    pairContainer.style.marginTop = '12px';
+    pairContainer.innerHTML = '<b>Top-Paare:</b>';
+    const topPairs = computeTopPairsRange(A,B, 5);
+    topPairs.forEach(it => {
+      const p = document.createElement('div');
+      p.className = 'stat-item';
+      const pairSpan = document.createElement('span');
+      pairSpan.className = 'stat-num';
+      pairSpan.style.width = '60px';
+      pairSpan.textContent = it.pair.join('-');
+      const cnt = document.createElement('span');
+      cnt.className = 'stat-count';
+      cnt.style.marginLeft = '4px';
+      cnt.textContent = it.count + '×';
+      p.appendChild(pairSpan);
+      p.appendChild(cnt);
+      pairContainer.appendChild(p);
+    });
+    listEl.appendChild(pairContainer);
     listEl.style.display = '';
   }
   $("#calcStats").addEventListener('click', showStats);
@@ -1018,7 +1213,14 @@
     return g_draws.map(d=> toBits(d).toString());
   }
   function triesBaseForNormal(base){ return { tries: Math.max(base*2, base+40_000), seeds: 3 }; }
-  function hardBudgetSecondsGen(sel){ return sel==="5"? 300 : sel==="10"? 600 : Infinity; }
+  function hardBudgetSecondsGen(sel){
+    if(sel === "2") return 120;
+    if(sel === "5") return 300;
+    if(sel === "10") return 600;
+    if(sel === "15") return 900;
+    if(sel === "30") return 1800;
+    return Infinity;
+  }
 
   function startGenerateInWorker(params){
     if(genWorker){ try{ genWorker.terminate(); }catch{} genWorker=null; }
@@ -1233,11 +1435,17 @@
           $("#results").innerHTML=""; $("#results").appendChild(frag);
           const elapsed=(performance.now()-t0)/1000;
           const mode = ($("#usePattern").checked ? "Muster" : "Zufall");
-          const lvl = ($("#genLevel").value||"normal");
-          const hardNote = (lvl==="hard") ? ` · Ziel: ${($("#genHardBudget").value==="5"?"~5min":$("#genHardBudget").value==="10"?"~10min":"Maximum")}` : "";
+          const timeSel = $("#genTime").value||"5";
+          let timeNote = '';
+          if(timeSel !== 'max'){
+            const mins = parseInt(timeSel,10);
+            timeNote = ` · Zeitlimit: ≈ ${mins} min`;
+          } else {
+            timeNote = ` · Zeitlimit: kein Limit`;
+          }
           $("#resultStatus").style.display="";
           $("#resultStatus").textContent =
-            `Ergebnisse: ${out.length}/${$("#want").value} · Modus: ${mode} · Stufe: ${lvl}${hardNote}\n`+
+            `Ergebnisse: ${out.length}/${$("#want").value} · Modus: ${mode}${timeNote}\n`+
             `Dauer: ${elapsed.toFixed(2)}s · Archiv: ${g_draws.length} Ziehungen (Ziehungsgröße ${g_drawSize})`;
           scrollToNode(document.getElementById("p-results"));
         }
@@ -1262,46 +1470,48 @@
     const Ssize=parseInt($("#kenoType").value,10), usePat=$("#usePattern").checked;
     const hotOn=$("#useHotGroups").checked, hotMode=($("#hotMode")?$("#hotMode").value:"require");
     const hotGroups = (hotOn ? g_hotGroups : []);
-    const level = $("#genLevel").value||"normal";
-    const hardBudget = (level==="hard") ? hardBudgetSecondsGen($("#genHardBudget").value) : 0;
+    // Ersetze die alte Versuchs-/Stufenlogik durch ein einheitliches Zeitlimit. Der Generator verwendet nun immer
+    // 'hard' als Suchstrategie mit budgetSec, das aus der Auswahl #genTime abgeleitet wird.
+    const level = 'hard';
+    const budgetSec = hardBudgetSecondsGen($("#genTime").value);
     const params = {
       A,B,S:Ssize,maxOv,
       drawsBits: buildDrawBits(A,B),
       hotOn, hotMode, hotGroups,
       want:+$("#want").value,
       level,
-      budgetSec: hardBudget,
+      budgetSec,
       seed:(+$("#seed").value)>>>0
     };
     const genModeUI = $("#genMode").value || "random";
     if(!usePat){
+      // Kein Muster – Zufall/Frequenz/Hot-Paare nutzen
       params.strategy = genModeUI;
+      // Hot‑Paare: komplettes Archiv als Fenster verwenden
       if(genModeUI === "hotpairs"){
-        params.hpWindow = +($("#hpWindow").value||500);
         params.hpTopN = +($("#hpTopN").value||50);
         params.hpMinPairs = +($("#hpMinPairs").value||1);
         params.hpWeight = $("#hpWeight").value || "soft";
-        const fromIdx = Math.max(0, g_draws.length - params.hpWindow);
-        params.drawsWindow = g_draws.slice(fromIdx).map(d => d.filter(v => v>=params.A && v<=params.B));
+        params.drawsWindow = g_draws.map(d => d.filter(v => v>=params.A && v<=params.B));
       }
+      // Frequenzmodus: komplettes Archiv als Fenster verwenden
       if(genModeUI === "freq"){
-        const fw = Math.max(100, +($("#hpWindow").value||500));
-        const fromIdx = Math.max(0, g_draws.length - fw);
-        params.drawsWindow = g_draws.slice(fromIdx).map(d => d.filter(v => v>=params.A && v<=params.B));
+        params.drawsWindow = g_draws.map(d => d.filter(v => v>=params.A && v<=params.B));
       }
+      // Bereichsregeln
       params.rangeRulesOn = $("#useRangeRules").checked;
       if(params.rangeRulesOn){
         params.segSize = Math.max(2, +($("#segSize").value||10));
         params.segMin  = Math.max(0, +($("#segMin").value||0));
         params.segMax  = Math.max(params.segMin, +($("#segMax").value||10));
       }
+      // Modus Zufall für den Worker
+      params.mode = 'random';
     }else{
-      params.mode='pattern';
-      params.strategy='pattern';
+      // Muster-Modus
+      params.mode = 'pattern';
+      params.strategy = 'pattern';
       params.gaps = g_pattern.slice();
-    }
-    if(!usePat){
-      params.mode='random';
     }
     $("#genInfo").textContent = `Starte… (Modus: ${params.mode==='pattern'?'Muster':'Zufall'}, S=${Ssize}, Bereich ${A}–${B}, maxOv ≤ ${maxOv}, Stufe=${level}${level==='hard'?(params.budgetSec===Infinity?' · Maximum':' · Zielzeit ~'+(params.budgetSec/60)+'min'):''})`;
     $("#results").innerHTML=""; $("#resultStatus").style.display="none";
@@ -1509,7 +1719,44 @@
     const max = +($("#segMax").value||0);
     if(isNaN(A)||isNaN(B)||A>B){ summaryEl.textContent="Ungültiger Bereich"; return; }
     const segs = Math.floor((B - A) / size) + 1;
-    summaryEl.textContent = `Bereich ${A}–${B} → ${segs} Segmente. Min=${min}, Max=${max}.`;
+    // Detaillierte Segmentliste erstellen
+    const lines=[];
+    // Zeige Segmentbreite und Anzahl in der Zusammenfassung
+    lines.push(`Bereich ${A}–${B} → ${segs} Segmente (Breite=${size}, min=${min}, max=${max})`);
+    const limit = segs > 15 ? 15 : segs;
+    for(let i=0; i<limit; i++){
+      const start = A + i*size;
+      const end = Math.min(B, start + size - 1);
+      lines.push(`${start}-${end}: ≥${min}, ≤${max}`);
+    }
+    if(segs > limit) lines.push(`… weitere Segmente (${segs - limit} weitere)`);
+    // Neue Darstellung als HTML mit Zeilenumbrüchen
+    summaryEl.innerHTML = lines.map(l => l.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')).join('<br>');
+    // Aktualisiere die visuelle Karte der Bereichssegmente
+    const mapEl = document.getElementById('rangeMap');
+    if(mapEl){
+      // Zeige Karte nur, wenn Bereichsregeln aktiv und nicht zu viele Segmente
+      if(!$("#useRangeRules").checked || segs > 24){
+        mapEl.innerHTML = '';
+      } else {
+        mapEl.innerHTML = '';
+        for(let i=0; i<segs; i++){
+          const start = A + i * size;
+          const end = Math.min(B, start + size - 1);
+          const segDiv = document.createElement('div');
+          segDiv.className = 'range-seg';
+          const label = document.createElement('span');
+          label.className = 'seg-label';
+          label.textContent = `${start}-${end}`;
+          const detail = document.createElement('span');
+          detail.className = 'seg-details';
+          detail.textContent = `${min}–${max}`;
+          segDiv.appendChild(label);
+          segDiv.appendChild(detail);
+          mapEl.appendChild(segDiv);
+        }
+      }
+    }
   }
   // Reagiere auf Änderungen der Eingabefelder im Bereichsregeln-Panel
   ["segSize","segMin","segMax","rangeFrom","rangeTo"].forEach(id=>{
@@ -1591,99 +1838,222 @@
     }
     return true;
   }
-  // Handler zur Generierung mehrerer Varianten
-  const btnMakeMulti = document.getElementById('makeMulti');
-  if(btnMakeMulti){
-    btnMakeMulti.addEventListener('click', function(){
+  // Die Mehrfach‑Varianten‑Funktion wurde in den Agent‑Modus integriert. Die frühere Variante‑Generierung ist entfernt.
+
+  /* ===================== Agent‑Modus (KI‑Vorschläge) ===================== */
+  // Ermittelt die häufigsten Paare (k=2) im Bereich A–B
+  function computeTopPairsRange(A,B,topN){
+    topN = topN || 10;
+    const counts = new Map();
+    for(const draw of g_draws){
+      const arr = draw.filter(v => v>=A && v<=B).sort((a,b) => a-b);
+      const n = arr.length;
+      for(let i=0; i<n; i++){
+        for(let j=i+1; j<n; j++){
+          const key = arr[i] + '-' + arr[j];
+          counts.set(key, (counts.get(key) || 0) + 1);
+        }
+      }
+    }
+    const list = Array.from(counts.entries()).sort((a,b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return list.slice(0, topN).map(([key,count]) => ({ pair: key.split('-').map(x => parseInt(x,10)), count }));
+  }
+  // Event für den Agent‑Modus
+  const btnAgentGo = document.getElementById('agentGo');
+  if(btnAgentGo){
+    btnAgentGo.addEventListener('click', function(){
+      // Prüfe Archiv
       if(!g_draws.length){ alert('Bitte zuerst Archiv laden'); return; }
-      let count = parseInt(document.getElementById('multiCount')?.value || '6', 10);
-      if(isNaN(count) || count < 2) count = 2;
-      if(count > 20) count = 20;
       const A = +($('#rangeFrom').value || 0);
       const B = +($('#rangeTo').value || 0);
       const S = parseInt($('#kenoType').value || '0', 10);
-      const maxOv = parseInt($('#maxOv').value || '0', 10);
-      if(isNaN(A) || isNaN(B) || A > B || S <= 0){ alert('Ungültige Einstellungen (Bereich oder KENO-Typ)'); return; }
-      if(document.getElementById('usePattern').checked){ alert('Mehrfach‑Varianten funktionieren nur ohne aktiviertes Muster.'); return; }
-      const multiInfo = document.getElementById('multiInfo');
-      const multiResults = document.getElementById('multiResults');
-      if(multiResults) multiResults.innerHTML = '';
-      if(multiInfo){ multiInfo.style.display = ''; multiInfo.textContent = 'Berechne Varianten…'; }
+      if(isNaN(A) || isNaN(B) || A > B || S <= 0){ alert('Ungültige Einstellungen'); return; }
+      const agentInfo = document.getElementById('agentInfo');
+      const agentResults = document.getElementById('agentResults');
+      if(agentResults) agentResults.innerHTML = '';
+      if(agentInfo){ agentInfo.style.display=''; agentInfo.textContent='Analysiere Archiv…'; }
+      const nRes = Math.max(1, Math.min(20, parseInt($('#agentCount').value || '3', 10)));
+      // Hilfsfunktionen und Daten vorbereiten
       const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
-      const genMode = document.getElementById('genMode').value || 'random';
+      const maxOv = parseInt($('#maxOv').value || '0', 10);
+      const rangeRulesOn = $('#useRangeRules').checked;
+      const segSize = Math.max(2, +($('#segSize').value||10));
+      const segMin  = Math.max(0, +($('#segMin').value||0));
+      const segMax  = Math.max(segMin, +($('#segMax').value||10));
+      const respects = (arr)=>{
+        if(!rangeRulesOn) return true;
+        const segs = Math.floor((B - A) / segSize) + 1;
+        const counts = Array(segs).fill(0);
+        for(const v of arr){ counts[Math.floor((v - A) / segSize)]++; }
+        for(let i=0;i<segs;i++){
+          if(counts[i] < segMin) return false;
+          if(counts[i] > segMax) return false;
+        }
+        return true;
+      };
+      // Häufigkeit & Recency berechnen
       const freq = computeFreqRange(A,B);
-      const covered = new Set();
+      const topPairs = computeTopPairsRange(A,B, Math.min(10, S));
+      // Recency: wie viele Ziehungen seit dem letzten Auftreten (je größer, desto länger nicht gezogen)
+      const rec = (()=>{
+        const n=B-A+1, last=Array(n).fill(-1);
+        for(let d=0; d<g_draws.length; d++){
+          for(const v of g_draws[d]){
+            if(v<A||v>B) continue;
+            const idx=v-A; last[idx]=d;
+          }
+        }
+        return last.map(x=> x<0 ? g_draws.length : (g_draws.length-1-x));
+      })();
+      // Score: kombiniere Häufigkeit (je höher, desto häufiger) und Recency (je höher, desto länger nicht gezogen)
+      const scores = [];
+      for(let i=0;i<freq.length;i++){
+        const f = freq[i];
+        const r = rec[i];
+        // Gewichtung: häufige Zahlen etwas stärker, aber lange nicht gezogene Zahlen ebenfalls berücksichtigen
+        const sVal = f*1.0 + (r/5);
+        scores.push({ num: A + i, score: sVal, freq: f, rec: r });
+      }
+      scores.sort((a,b) => b.score - a.score || a.num - b.num);
+      // Hilfsfunktionen
+      const usedSets = new Set();
       const results = [];
-      let seed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
-      const maxTries = 3000;
-      for(let vi=0; vi<count; vi++){
+      const covered = new Set();
+      const rngSeed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
+      let seed = rngSeed;
+      // valid check
+      function isValid(arr){
+        if(!respects(arr)) return false;
+        const bits = toBitMask(arr);
+        if(!validAgainstBits(drawsBits, bits, maxOv)) return false;
+        return true;
+      }
+      function addResult(arr){
+        const key = arr.join(',');
+        if(!usedSets.has(key)){
+          usedSets.add(key);
+          results.push(arr);
+        }
+      }
+      // 1. Strategie: aus Scores rollierend wählen
+      const numsByScore = scores.map(it => it.num);
+      for(let i=0; i<nRes && results.length < nRes; i++){
+        const start = i * S;
+        let seg = numsByScore.slice(start, start + S);
+        if(seg.length < S){ seg = seg.concat(numsByScore.slice(0, S - seg.length)); }
+        const cand = seg.slice(0,S).sort((a,b)=>a-b);
+        if(isValid(cand)) addResult(cand);
+      }
+      // 2. Strategie: Top‑Paare nutzen
+      for(const tp of topPairs){
+        if(results.length >= nRes) break;
+        const set = new Set(tp.pair);
+        for(const item of scores){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+        let arr = Array.from(set).sort((a,b)=>a-b);
+        if(arr.length < S){
+          for(const item of scores){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+          arr.sort((a,b)=>a-b);
+          arr = arr.slice(0,S);
+        }
+        if(isValid(arr)) addResult(arr);
+      }
+      // 3. Strategie: Coverage/Random gewichtet, falls noch nicht genug Ergebnisse
+      for(let vi=0; vi<nRes && results.length < nRes; vi++){
         let best = null;
-        for(let t=0; t<maxTries; t++){
-          const rand = rng(seed++);
-          const weights = [];
-          for(let v=A; v<=B; v++){
-            let w = 1;
-            if(covered.has(v)) w *= 0.2;
-            if(genMode === 'freq'){ w *= (freq[v - A] + 1); }
-            weights.push(w);
-          }
-          const cand = weightedSpreadPick(A,B,S,weights,rand);
-          if(document.getElementById('useRangeRules').checked){
-            const segSize = Math.max(1, +($('#segSize').value || 10));
-            const segMin  = +($('#segMin').value || 0);
-            const segMax  = +($('#segMax').value || 20);
-            const segs = {};
-            for(const v of cand){
-              const idx = Math.floor((v - A) / segSize);
-              segs[idx] = (segs[idx] || 0) + 1;
-            }
-            const totalSegs = Math.floor((B - A) / segSize) + 1;
-            let ok = true;
-            for(let sidx=0; sidx<totalSegs; sidx++){
-              const cval = segs[sidx] || 0;
-              if(cval < segMin || cval > segMax){ ok = false; break; }
-            }
-            if(!ok) continue;
-          }
-          const bits = toBitMask(cand);
-          if(!validAgainstBits(drawsBits, bits, maxOv)) continue;
-          let dup = false;
-          for(const r of results){ if(r.toString() === cand.toString()){ dup = true; break; } }
-          if(dup) continue;
+        // Versuche einige zufällige Varianten mit Gewichtung nach Scores
+        for(let t=0; t<1500; t++){
+          const weights = scores.map(it => it.score + 1e-3);
+          const cand = weightedSpreadPick(A,B,S,weights,rng(seed++));
+          if(!isValid(cand)) continue;
+          // Bessere Bewertung: wie viele neue Zahlen bringt diese Kombi?
           const newCount = cand.filter(v => !covered.has(v)).length;
-          if(!best || newCount > best.newCount){ best = { cand, newCount }; }
-          if(best && best.newCount === S) break;
+          if(!best || newCount > best.newCount){ best = { cand, newCount }; if(newCount === S) break; }
         }
         if(best){
-          results.push(best.cand);
+          addResult(best.cand);
           for(const v of best.cand) covered.add(v);
-        } else {
-          const rand = rng(seed++);
-          const pool = [];
-          for(let v=A; v<=B; v++) pool.push(v);
-          const tmp = [];
-          for(let i=0; i<S && pool.length; i++){
-            const idx = Math.floor(rand() * pool.length);
-            tmp.push(pool.splice(idx,1)[0]);
-          }
-          tmp.sort((a,b) => a - b);
-          results.push(tmp);
-          for(const v of tmp) covered.add(v);
         }
       }
-      if(multiResults && results.length){
+      // 4. Strategie: Musteranalyse aus den vorhandenen Ziehungen
+      // Wir analysieren die häufigsten Differenzen (Abstände) von Ziehungen im aktuellen Bereich A–B,
+      // um mögliche Gap-Muster zu erkennen. Für jede Ziehung wird ein gleitendes Fenster der Länge S
+      // betrachtet, aus dem die Gaps zwischen aufeinanderfolgenden Zahlen ermittelt werden.
+      // Die häufigsten Gap-Muster dienen dann als Vorlage, um neue Kandidaten zu generieren.
+      if(results.length < nRes){
+        const gapCounts = new Map();
+        const windowSize = S;
+        for(const draw of g_draws){
+          const arr = draw.filter(v => v>=A && v<=B).sort((a,b) => a - b);
+          if(arr.length >= windowSize){
+            for(let i=0; i <= arr.length - windowSize; i++){
+              const slice = arr.slice(i, i + windowSize);
+              const gaps = [];
+              for(let j=0; j < slice.length - 1; j++){
+                gaps.push(slice[j+1] - slice[j]);
+              }
+              const key = gaps.join(',');
+              gapCounts.set(key, (gapCounts.get(key) || 0) + 1);
+            }
+          }
+        }
+        const gapList = Array.from(gapCounts.entries()).sort((a,b) => b[1] - a[1]).slice(0, 8)
+          .map(([key,count]) => key.split(',').map(x => parseInt(x,10)));
+        // Nutze die Häufigkeitsliste als Gewicht für die Auswahl der Gaps.
+        for(const gaps of gapList){
+          if(results.length >= nRes) break;
+          const inc = gaps.reduce((acc, v) => acc + v, 0);
+          // Finde eine gute Startposition: minimaler Summen-Frequenzscore
+          let bestStart = null;
+          let bestCost = Infinity;
+          for(let s = A; s <= B - inc; s++){
+            const seq = [s];
+            let cur = s;
+            let cost = 0;
+            cost += freq[cur - A] || 0;
+            for(const g of gaps){ cur += g; cost += freq[cur - A] || 0; seq.push(cur); }
+            if(cost < bestCost){ bestCost = cost; bestStart = s; }
+          }
+          if(bestStart !== null){
+            const cand = [];
+            let cur = bestStart;
+            cand.push(cur);
+            for(const g of gaps){ cur += g; cand.push(cur); }
+            cand.sort((a,b) => a - b);
+            if(cand.length === S && isValid(cand)){
+              addResult(cand);
+              for(const v of cand) covered.add(v);
+            }
+          }
+        }
+      }
+
+      // 5. Fallback: fülle mit Topfreq falls immer noch weniger
+      if(results.length < nRes){
+        let fillIdx = 0;
+        while(results.length < nRes){
+          const arr = numsByScore.slice(fillIdx, fillIdx + S);
+          let cand = arr;
+          if(cand.length < S) cand = cand.concat(numsByScore.slice(0, S - cand.length));
+          cand = cand.slice(0,S).sort((a,b)=>a-b);
+          if(isValid(cand)) addResult(cand);
+          fillIdx += S;
+          if(fillIdx > numsByScore.length) break;
+        }
+      }
+      // Ergebnisse ausgeben
+      if(agentResults && results.length){
         const frag = document.createDocumentFragment();
-        results.forEach((arr,i) => {
+        results.slice(0,nRes).forEach((arr,i) => {
           const div = document.createElement('div');
           div.className = 'resItem';
-          div.innerHTML = '<span class="resNums">Variante ' + (i+1) + ' → ' + arr.join(' ') + '</span>';
+          div.innerHTML = '<span class="resNums">Agent Vorschlag ' + (i+1) + ' → ' + arr.join(' ') + '</span>';
           frag.appendChild(div);
         });
-        multiResults.appendChild(frag);
+        agentResults.appendChild(frag);
       }
-      if(multiInfo){ multiInfo.textContent = results.length ? 'Generiert ' + results.length + ' Varianten mit insgesamt ' + covered.size + ' unterschiedlichen Zahlen.' : 'Keine Varianten gefunden.'; }
-      const pMulti = document.getElementById('p-multi');
-      if(pMulti) scrollToNode(pMulti);
+      if(agentInfo){ agentInfo.textContent = results.length ? 'Agent hat ' + Math.min(results.length,nRes) + ' Vorschläge erstellt.' : 'Keine Vorschläge gefunden.'; }
+      const pAgent = document.getElementById('p-agent');
+      if(pAgent) scrollToNode(pAgent);
     });
   }
 
