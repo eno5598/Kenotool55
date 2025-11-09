@@ -306,6 +306,8 @@
           <option value="pi">Pi‑Ziffern</option>
           <option value="fib">Fibonacci</option>
           <option value="prime">Primzahl</option>
+          <option value="fac">Fakultät</option>
+          <option value="lucas">Lucas</option>
         </select>
         <div class="hint">Mathematische Basis für den automatisch erzeugten Seed</div>
       </div>
@@ -372,7 +374,19 @@
   <div class="panel" id="p-stats" style="border-left:6px solid var(--accent2)">
     <div class="ph"><span class="emoji">📊</span><h2 style="margin:0">Statistik</h2></div>
     <div class="row">
-      <div><button id="calcStats" class="secondary">Statistik berechnen</button></div>
+      <div>
+        <button id="calcStats" class="secondary">Statistik berechnen</button>
+      </div>
+      <div>
+        <label>Ziehungsfenster</label>
+        <select id="statsWindow">
+          <option value="all" selected>Alle</option>
+          <option value="15">Letzte&nbsp;15</option>
+          <option value="50">Letzte&nbsp;50</option>
+          <option value="100">Letzte&nbsp;100</option>
+        </select>
+        <div class="hint">Fenstergröße der letzten Ziehungen</div>
+      </div>
     </div>
     <div id="statsInfo" class="status" style="display:none;margin-top:6px"></div>
     <!-- Statt einer Balkengrafik wird hier eine Top-Liste angezeigt -->
@@ -1157,18 +1171,32 @@ function togglePatternBox(){
   function showStats(){
     if(!g_draws.length){ alert('Bitte zuerst Archiv laden.'); return; }
     const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
-    const freq=computeFrequency(A,B);
-    const maxFreq=Math.max(...freq, 1);
+    // Wähle das Fenster der letzten Ziehungen entsprechend der Auswahl im Dropdown
+    const winSelEl = document.getElementById('statsWindow');
+    const winVal = winSelEl ? (winSelEl.value || 'all') : 'all';
+    let drawsSubset;
+    if(winVal === 'all' || !winVal){
+      drawsSubset = g_draws.slice();
+    } else {
+      const nWin = parseInt(winVal, 10) || g_draws.length;
+      drawsSubset = g_draws.slice(-nWin);
+    }
+    // Berechne Häufigkeit der Zahlen im gewählten Bereich für das ausgewählte Ziehungsfenster
+    const freq = Array(B - A + 1).fill(0);
+    for(const d of drawsSubset){
+      for(const v of d){
+        if(v >= A && v <= B){ freq[v - A]++; }
+      }
+    }
     const info=[];
-    info.push(`Ziehungen: ${g_draws.length}`);
+    info.push(`Ziehungen (Fenster): ${drawsSubset.length}`);
     info.push(`Ziehungsgröße: ${g_drawSize}`);
     info.push(`Bereich: ${A}-${B}`);
     $("#statsInfo").innerHTML = info.join('<br>');
     $("#statsInfo").style.display="";
-    // Statistikliste: Top-Zahlen und Top-Paare mit Balkenvisualisierung
     const listEl = $("#statsList");
     listEl.innerHTML = '';
-    // Berechne Top-Zahlen sortiert nach Häufigkeit
+    // Berechne Top-Zahlen sortiert nach Häufigkeit im Fenster
     const entries = freq.map((count,i) => ({ num: A + i, count })).filter(e => e.count > 0);
     entries.sort((a,b) => b.count - a.count || a.num - b.num);
     const topNums = entries.slice(0, Math.min(12, entries.length));
@@ -1196,27 +1224,6 @@ function togglePatternBox(){
       numContainer.appendChild(item);
     });
     listEl.appendChild(numContainer);
-    // Top-Paare
-    const pairContainer = document.createElement('div');
-    pairContainer.style.marginTop = '12px';
-    pairContainer.innerHTML = '<b>Top-Paare:</b>';
-    const topPairs = computeTopPairsRange(A,B, 5);
-    topPairs.forEach(it => {
-      const p = document.createElement('div');
-      p.className = 'stat-item';
-      const pairSpan = document.createElement('span');
-      pairSpan.className = 'stat-num';
-      pairSpan.style.width = '60px';
-      pairSpan.textContent = it.pair.join('-');
-      const cnt = document.createElement('span');
-      cnt.className = 'stat-count';
-      cnt.style.marginLeft = '4px';
-      cnt.textContent = it.count + '×';
-      p.appendChild(pairSpan);
-      p.appendChild(cnt);
-      pairContainer.appendChild(p);
-    });
-    listEl.appendChild(pairContainer);
     listEl.style.display = '';
   }
   $("#calcStats").addEventListener('click', showStats);
@@ -1488,6 +1495,24 @@ function togglePatternBox(){
     // 'hard' als Suchstrategie mit budgetSec, das aus der Auswahl #genTime abgeleitet wird.
     const level = 'hard';
     const budgetSec = hardBudgetSecondsGen($("#genTime").value);
+    // Falls eine Seed‑Formel ausgewählt ist (außer Krypto), wende sie auf den aktuellen Seed an,
+    // bevor der Generator gestartet wird. Dadurch wird der Startwert automatisch transformiert.
+    try{
+      const formulaSel = document.getElementById('seedFormula');
+      const selFormula = formulaSel ? (formulaSel.value || 'crypto') : 'crypto';
+      if(selFormula && selFormula !== 'crypto'){
+        const seedEl = document.getElementById('seed');
+        if(seedEl){
+          const curVal = String(seedEl.value || '').trim();
+          // Wende die Formel auf den aktuellen Seed an
+          const transformed = applySeedFormula(curVal, selFormula);
+          seedEl.value = transformed;
+          // Informiere über den angewandten Seed
+          text($("#statusTop"), `Seed transformiert (Formel: ${selFormula}) → ${transformed}`);
+        }
+      }
+    }catch(err){ console.error('Seed‑Formel konnte nicht angewendet werden:', err); }
+
     const params = {
       A,B,S:Ssize,maxOv,
       drawsBits: buildDrawBits(A,B),
@@ -2147,86 +2172,134 @@ function togglePatternBox(){
   }
 
   // Zufälligen Seed generieren (Kombinationen‑Panel)
-  const btnSeedRand = document.getElementById('seedRand');
-  if(btnSeedRand){
-    btnSeedRand.addEventListener('click', ()=>{
-      let seedStr = '';
-      // Bestimme die gewählte Formel für die Seed‑Generierung
-      const formulaEl = document.getElementById('seedFormula');
-      const formula = formulaEl ? (formulaEl.value || 'crypto') : 'crypto';
-      if(formula === 'pi'){
-        // Verwende eine vordefinierte Folge von Pi‑Ziffern. Wähle ein zufälliges Teilstück als Seed.
-        const piDigits = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
-        const subLen = 12;
-        let randIndex = 0;
+  // Hilfsfunktion: wendet die ausgewählte Seed-Formel auf einen angegebenen Startwert an.
+  // Gibt einen neuen Seed-String zurück. Für die Formel "crypto" wird eine Zufallszahl generiert.
+  function applySeedFormula(startVal, formula){
+    const valStr = String(startVal||'').trim();
+    const isNum = /^\d+$/.test(valStr);
+    const parsed = isNum ? BigInt(valStr) : null;
+    let seedStr = '';
+    if(formula === 'pi'){
+      const piDigits = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
+      const subLen = 12;
+      let startIndex;
+      if(isNum){
+        // Verwende den eingegebenen Index, modulo der verfügbaren Länge
+        const maxStart = piDigits.length - subLen;
+        const idxNum = Number(parsed % BigInt(piDigits.length));
+        startIndex = idxNum % maxStart;
+      } else {
+        // Zufälliger Index als Fallback
         if(window.crypto && crypto.getRandomValues){
           const tmp = new Uint32Array(1);
           crypto.getRandomValues(tmp);
-          // tmp[0] ist ein normales 32‑Bit‑Integer. Für den Index genügt eine numerische Modulo‑Operation.
-          randIndex = tmp[0] % (piDigits.length - subLen);
+          startIndex = tmp[0] % (piDigits.length - subLen);
         } else {
-          randIndex = Math.floor(Math.random() * (piDigits.length - subLen));
+          startIndex = Math.floor(Math.random() * (piDigits.length - subLen));
         }
-        seedStr = piDigits.slice(randIndex, randIndex + subLen);
-      } else if(formula === 'fib'){
-        // Wähle eine zufällige Position innerhalb eines moderaten Bereichs und berechne die Fibonacci‑Zahl.
-        let n = 20;
+      }
+      seedStr = piDigits.slice(startIndex, startIndex + subLen);
+    } else if(formula === 'fib'){
+      // Fibonacci: berechne die n-te Fibonacci-Zahl aus dem Startwert
+      let n;
+      if(isNum){ n = Number(parsed); } else {
+        // Zufälliger Index zwischen 10 und 40
         if(window.crypto && crypto.getRandomValues){
           const tmp = new Uint32Array(1);
           crypto.getRandomValues(tmp);
-          n = 10 + (tmp[0] % 30);
+          n = 10 + (tmp[0] % 31);
         } else {
-          n = 10 + Math.floor(Math.random() * 30);
+          n = 10 + Math.floor(Math.random() * 31);
         }
-        let a = 0n, b = 1n;
-        for(let i=0; i<n; i++){
+      }
+      if(n > 100) n = 100;
+      let a=0n, b=1n;
+      for(let i=0; i<n; i++){
+        const t = a + b;
+        a = b;
+        b = t;
+      }
+      seedStr = a.toString();
+    } else if(formula === 'prime'){
+      // Primzahl: berechne die n-te Primzahl
+      let target;
+      if(isNum){ target = Number(parsed); } else {
+        // Zufälliges n zwischen 20 und 100
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          target = 20 + (tmp[0] % 81);
+        } else {
+          target = 20 + Math.floor(Math.random() * 81);
+        }
+      }
+      if(target > 1000) target = 1000;
+      function isPrime(num){ if(num < 2) return false; for(let i=2; i*i <= num; i++){ if(num % i === 0) return false; } return true; }
+      let count=0, num=1, prime=2;
+      while(count < target){ num++; if(isPrime(num)){ count++; prime = num; } }
+      seedStr = prime.toString();
+    } else if(formula === 'fac'){
+      // Fakultät: n! aus dem Startwert
+      let n;
+      if(isNum){ n = Number(parsed); } else {
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          n = 5 + (tmp[0] % 6);
+        } else {
+          n = 5 + Math.floor(Math.random() * 6);
+        }
+      }
+      if(n > 20) n = 20;
+      let res=1n;
+      for(let i=2n; i<=BigInt(n); i++) res *= i;
+      seedStr = res.toString();
+    } else if(formula === 'lucas'){
+      // Lucas-Folge
+      let n;
+      if(isNum){ n = Number(parsed); } else {
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          n = 10 + (tmp[0] % 21);
+        } else {
+          n = 10 + Math.floor(Math.random() * 21);
+        }
+      }
+      if(n > 100) n = 100;
+      let a=2n, b=1n;
+      if(n === 0) seedStr = '2'; else if(n === 1) seedStr = '1'; else {
+        for(let i=2; i<=n; i++){
           const t = a + b;
           a = b;
           b = t;
         }
-        seedStr = a.toString();
-      } else if(formula === 'prime'){
-        // Wähle eine zufällige Position und ermittle die entsprechende Primzahl.
-        let target = 50;
-        if(window.crypto && crypto.getRandomValues){
-          const tmp = new Uint32Array(1);
-          crypto.getRandomValues(tmp);
-          target = 20 + (tmp[0] % 80);
-        } else {
-          target = 20 + Math.floor(Math.random() * 80);
-        }
-        function isPrime(num){
-          if(num < 2) return false;
-          for(let i=2; i*i <= num; i++){
-            if(num % i === 0) return false;
-          }
-          return true;
-        }
-        let count = 0;
-        let num = 1;
-        let prime = 2;
-        while(count < target){
-          num++;
-          if(isPrime(num)){
-            count++;
-            prime = num;
-          }
-        }
-        seedStr = prime.toString();
-      } else {
-        // Standard: Verwende crypto.getRandomValues für einen 64‑Bit‑Seed, fallback auf Math.random
-        if(window.crypto && crypto.getRandomValues){
-          const arr = new Uint32Array(2);
-          crypto.getRandomValues(arr);
-          const bi = (BigInt(arr[0]) << 32n) | BigInt(arr[1]);
-          seedStr = bi.toString();
-        } else {
-          seedStr = Math.floor(Math.random() * 1e16).toString();
-        }
+        seedStr = b.toString();
       }
+    } else {
+      // Krypto-Zufall: generiere zufälligen Seed
+      if(window.crypto && crypto.getRandomValues){
+        const arr = new Uint32Array(2);
+        crypto.getRandomValues(arr);
+        const bi = (BigInt(arr[0]) << 32n) | BigInt(arr[1]);
+        seedStr = bi.toString();
+      } else {
+        seedStr = Math.floor(Math.random() * 1e16).toString();
+      }
+    }
+    return seedStr;
+  }
+
+  const btnSeedRand = document.getElementById('seedRand');
+  if(btnSeedRand){
+    btnSeedRand.addEventListener('click', ()=>{
+      const formulaEl = document.getElementById('seedFormula');
+      const formula = formulaEl ? (formulaEl.value || 'crypto') : 'crypto';
       const seedInput = document.getElementById('seed');
-      if(seedInput) seedInput.value = seedStr;
-      text($("#statusTop"), "Seed zufällig generiert: "+seedStr);
+      const currentVal = seedInput ? String(seedInput.value || '').trim() : '';
+      const newSeed = applySeedFormula(currentVal, formula);
+      if(seedInput) seedInput.value = newSeed;
+      text($("#statusTop"), "Seed generiert: "+newSeed);
     });
   }
   // Agent‑Ergebnisse löschen
