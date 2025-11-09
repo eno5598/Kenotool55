@@ -4,32 +4,47 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>KENO – Kombinationen, Muster & Hot-Gruppen (Maximum fähig)</title>
+<!-- Import futuristische Schriftarten -->
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
-  /* Farben für eine modernere, kontrastreichere Darstellung */
-    /* Farben angepasst für ein helleres, moderneres Design */
-    --bg: #112b53;       /* leicht aufgehellter dunkler Hintergrund */
-    --panel: #1b4880;    /* sanfter Blauton für Panels */
-    --border: #4e6b99;   /* hellerer Rand */
-    --muted: #355a92;    /* Hintergrund für Eingaben und Karten */
-    --text: #f5f8ff;     /* helles Grau für Texte */
-    --accent: #6fd8b5;   /* frischeres Grün für Highlights */
-    --accent2: #6bbcf8;  /* lebendiges Hellblau für Sekundär‑Panels */
-    --warm: #fbb15f;     /* warmes Orange für Hinweise */
-    --danger: #f66a6b;   /* weicheres Rot für Warnungen */
+    /* Futuristisches Farbschema mit Neon‑Akzenten */
+    --bg: #0a1128;        /* sehr dunkles Blau als Grundfarbe */
+    --panel: #14213d;     /* leicht hellerer Ton für Panels */
+    --border: #1f2a54;    /* dezente Randfarbe */
+    --muted: #243b6b;     /* Hintergrund für Eingaben und Karten */
+    --text: #e1e9ff;      /* sehr helles Blau für Texte */
+    --accent: #00f5a0;    /* knalliges Neon‑Grün als primärer Akzent */
+    --accent2: #00bbf9;   /* lebendiges Neon‑Blau für sekundäre Akzente */
+    --warm: #ff8e42;      /* lebendiges Orange für Hinweise */
+    --danger: #f43f5e;    /* sattes Pink‑Rot für Warnungen */
   }
   html,body{height:100%}
-  body{margin:0;padding:16px;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:var(--bg);color:var(--text)}
+  body{
+    margin:0;
+    padding:16px;
+    font:16px/1.45 'Roboto Mono', ui-monospace, Consolas, Menlo, monospace;
+    background:linear-gradient(135deg, #0a1128 0%, #100c2d 50%, #0a1128 100%);
+    color:var(--text);
+  }
+  h1,h2,h3,h4,h5,h6{
+    font-family:'Orbitron', sans-serif;
+  }
   a{color:#93c5fd;text-decoration:none}
   .box{max-width:1140px;margin:0 auto}
   input[type="file"],input[type="number"],input[type="text"],select,textarea{
     width:100%;box-sizing:border-box;padding:10px;border-radius:10px;border:1px solid var(--muted);background:var(--bg);color:var(--text)
   }
   button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:700}
+  button{transition:background 0.3s, transform 0.2s;}
   .primary{background:linear-gradient(135deg,#059669,#22c55e);color:#04110a}
+  .primary:hover{background:linear-gradient(135deg,#06b981,#34d58c);transform:translateY(-1px);}
   .secondary{background:#1f2937;color:var(--text);border:1px solid var(--muted)}
+  .secondary:hover{background:#2a3d5d;transform:translateY(-1px);}
   .danger{background:#7f1d1d;color:#fee2e2;border:1px solid #991b1b}
+  .danger:hover{background:#991b1b;transform:translateY(-1px);}
   .ghost{background:transparent;border:1px dashed var(--muted);color:var(--text)}
+  .ghost:hover{background:rgba(255,255,255,0.05);transform:translateY(-1px);}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>div{flex:1 1 220px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
@@ -37,6 +52,11 @@
   /* Schlagschatten für die Panels für einen moderneren Look */
   .panel{
     box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition:transform 0.2s, box-shadow 0.3s;
+  }
+  .panel:hover{
+    transform:translateY(-2px);
+    box-shadow:0 6px 10px rgba(0,0,0,0.35);
   }
   .ph{display:flex;align-items:center;gap:10px;margin:0 0 8px}
   .emoji{font-size:22px}
@@ -254,11 +274,13 @@
     <div class="ph"><span class="emoji">🧮</span><h2 style="margin:0">Kombinationen generieren</h2></div>
     <div class="row">
       <div><label>Wieviele Ergebnisse</label><input type="number" id="want" value="10" min="1" max="2000"></div>
-      <div><label>Seed
-        <span class="hint" style="display:block;font-weight:normal">Startwert des Zufallszahlengenerators – gleiche Seeds liefern identische Ergebnisse (ähnlich wie bei echten KENO‑Ziehungen)</span>
-      </label>
+      <div>
+        <label>Seed
+          <span class="hint" style="display:block;font-weight:normal">Startwert des Zufallszahlengenerators – gleiche Seeds liefern identische Ergebnisse (ähnlich wie bei echten KENO‑Ziehungen). Sie können jetzt auch sehr lange Zahlen verwenden.</span>
+        </label>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
-          <input type="number" id="seed" value="1" min="0" style="flex:1 1 auto">
+          <!-- Den Seed als Textfeld definieren, damit auch sehr lange Zufallszahlen eingegeben werden können. Das pattern sorgt dafür, dass nur Ziffern akzeptiert werden. -->
+          <input type="text" id="seed" value="1" pattern="\d*" inputmode="numeric" style="flex:1 1 auto">
           <button id="seedRand" class="secondary" type="button">🎲 Zufallsseed</button>
         </div>
       </div>
@@ -354,10 +376,18 @@
   <div class="panel" id="p-agent" style="border-left:6px solid var(--accent2)">
     <div class="ph"><span class="emoji">🤖</span><h2 style="margin:0">Agent‑Modus</h2></div>
     <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
-    <div class="row" style="margin-top:6px">
+    <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:12px">
       <div>
         <label>Anzahl Vorschläge</label>
-        <input type="number" id="agentCount" value="3" min="1" max="20">
+        <!-- Die maximale Anzahl wurde erhöht, damit der Agent mehr Varianten liefern kann. -->
+        <input type="number" id="agentCount" value="5" min="1" max="30">
+      </div>
+      <div>
+        <label>Agent‑Modus</label>
+        <select id="agentStrategy">
+          <option value="standard" selected>Standard</option>
+          <option value="experimental">Experimentell</option>
+        </select>
       </div>
       <div style="flex:1 1 180px;display:flex;align-items:flex-end;gap:8px">
         <button id="agentGo" class="primary">Agent starten</button>
@@ -1481,7 +1511,7 @@ function togglePatternBox(){
       want:+$("#want").value,
       level,
       budgetSec,
-      seed:(+$("#seed").value)>>>0
+      seed: parseSeedVal($("#seed").value)
     };
     const genModeUI = $("#genMode").value || "random";
     if(!usePat){
@@ -1841,6 +1871,17 @@ function togglePatternBox(){
   // Die Mehrfach‑Varianten‑Funktion wurde in den Agent‑Modus integriert. Die frühere Variante‑Generierung ist entfernt.
 
   /* ===================== Agent‑Modus (KI‑Vorschläge) ===================== */
+  // Parsing von Seed-Werten: akzeptiert beliebig lange numerische Strings und reduziert auf einen 32‑Bit‑Wert durch Hashing.
+  function parseSeedVal(val){
+    const str = String(val || '1').trim();
+    let h = 0;
+    for(let i=0; i<str.length; i++){
+      const ch = str.charCodeAt(i);
+      // Ein einfaches Polynomhash; 31 ist gängiger Multiplikator
+      h = ((h * 31) + ch) >>> 0;
+    }
+    return h >>> 0;
+  }
   // Ermittelt die häufigsten Paare (k=2) im Bereich A–B
   function computeTopPairsRange(A,B,topN){
     topN = topN || 10;
@@ -1858,6 +1899,26 @@ function togglePatternBox(){
     const list = Array.from(counts.entries()).sort((a,b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
     return list.slice(0, topN).map(([key,count]) => ({ pair: key.split('-').map(x => parseInt(x,10)), count }));
   }
+
+  // Ermittelt die häufigsten Dreier-Kombinationen (k=3) im Bereich A–B
+  function computeTopTriplesRange(A,B,topN){
+    topN = topN || 10;
+    const counts = new Map();
+    for(const draw of g_draws){
+      const arr = draw.filter(v => v>=A && v<=B).sort((a,b) => a-b);
+      const n = arr.length;
+      for(let i=0; i<n; i++){
+        for(let j=i+1; j<n; j++){
+          for(let k=j+1; k<n; k++){
+            const key = arr[i] + '-' + arr[j] + '-' + arr[k];
+            counts.set(key, (counts.get(key) || 0) + 1);
+          }
+        }
+      }
+    }
+    const list = Array.from(counts.entries()).sort((a,b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+    return list.slice(0, topN).map(([key,count]) => ({ triple: key.split('-').map(x => parseInt(x,10)), count }));
+  }
   // Event für den Agent‑Modus
   const btnAgentGo = document.getElementById('agentGo');
   if(btnAgentGo){
@@ -1872,7 +1933,9 @@ function togglePatternBox(){
       const agentResults = document.getElementById('agentResults');
       if(agentResults) agentResults.innerHTML = '';
       if(agentInfo){ agentInfo.style.display=''; agentInfo.textContent='Analysiere Archiv…'; }
-      const nRes = Math.max(1, Math.min(20, parseInt($('#agentCount').value || '3', 10)));
+      const nRes = Math.max(1, Math.min(30, parseInt($('#agentCount').value || '5', 10)));
+      // Lese den Agent‑Modus (Standard oder Experimentell)
+      const strategy = document.getElementById('agentStrategy')?.value || 'standard';
       // Hilfsfunktionen und Daten vorbereiten
       const drawsBits = buildDrawBits(A,B).map(s => BigInt(s));
       const maxOv = parseInt($('#maxOv').value || '0', 10);
@@ -1894,6 +1957,11 @@ function togglePatternBox(){
       // Häufigkeit & Recency berechnen
       const freq = computeFreqRange(A,B);
       const topPairs = computeTopPairsRange(A,B, Math.min(10, S));
+      // Wenn experimenteller Modus gewählt ist, berechne zusätzlich Top‑Triples
+      let topTriples = [];
+      if(strategy === 'experimental'){
+        topTriples = computeTopTriplesRange(A,B, Math.min(10, S));
+      }
       // Recency: wie viele Ziehungen seit dem letzten Auftreten (je größer, desto länger nicht gezogen)
       const rec = (()=>{
         const n=B-A+1, last=Array(n).fill(-1);
@@ -1919,7 +1987,8 @@ function togglePatternBox(){
       const usedSets = new Set();
       const results = [];
       const covered = new Set();
-      const rngSeed = (parseInt($('#seed').value || '1', 10) >>> 0) || 1;
+      // Lese den Seed als String und hashe ihn auf 32‑Bit, damit auch sehr große Seeds funktionieren.
+      const rngSeed = parseSeedVal($('#seed').value || '1');
       let seed = rngSeed;
       // valid check
       function isValid(arr){
@@ -2040,6 +2109,25 @@ function togglePatternBox(){
           if(fillIdx > numsByScore.length) break;
         }
       }
+
+      // 6. Experimentelle Strategie: Top‑Triples nutzen (nur im Experimentell‑Modus)
+      if(strategy === 'experimental' && results.length < nRes){
+        for(const tt of topTriples){
+          if(results.length >= nRes) break;
+          const set = new Set(tt.triple);
+          // Ergänze die Triple um die besten Scores, bis wir S Zahlen haben
+          for(const item of scores){ if(set.size >= S) break; if(!set.has(item.num)) set.add(item.num); }
+          let arr = Array.from(set).sort((a,b)=>a-b);
+          if(arr.length < S){
+            for(const item of scores){ if(arr.length >= S) break; if(!arr.includes(item.num)) arr.push(item.num); }
+            arr = arr.slice(0,S).sort((a,b)=>a-b);
+          }
+          if(arr.length === S && isValid(arr)){
+            addResult(arr);
+            for(const v of arr) covered.add(v);
+          }
+        }
+      }
       // Ergebnisse ausgeben
       if(agentResults && results.length){
         const frag = document.createDocumentFragment();
@@ -2061,17 +2149,21 @@ function togglePatternBox(){
   const btnSeedRand = document.getElementById('seedRand');
   if(btnSeedRand){
     btnSeedRand.addEventListener('click', ()=>{
-      let val = 0;
+      let seedStr = '';
+      // Verwende crypto.getRandomValues für einen 64‑Bit‑Seed (Zufallszahl in hex), fallback auf Math.random
       if(window.crypto && crypto.getRandomValues){
-        const arr = new Uint32Array(1);
+        const arr = new Uint32Array(2);
         crypto.getRandomValues(arr);
-        val = arr[0] >>> 0;
+        // Kombiniere zwei 32‑Bit‑Blöcke zu einem 64‑Bit‑BigInt und konvertiere in dezimale Zeichen
+        const bi = (BigInt(arr[0]) << 32n) | BigInt(arr[1]);
+        seedStr = bi.toString();
       } else {
-        val = Math.floor(Math.random() * 0xFFFFFFFF) >>> 0;
+        // Fallback: Generiere eine sehr große Zufallszahl mit Math.random
+        seedStr = Math.floor(Math.random() * 1e16).toString();
       }
       const seedInput = document.getElementById('seed');
-      if(seedInput) seedInput.value = val;
-      text($("#statusTop"), "Seed zufällig generiert: "+val);
+      if(seedInput) seedInput.value = seedStr;
+      text($("#statusTop"), "Seed zufällig generiert: "+seedStr);
     });
   }
   // Agent‑Ergebnisse löschen
