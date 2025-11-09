@@ -81,7 +81,10 @@
 
   /* Bereichsregel-Map */
   .range-map{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
-  .range-seg{flex:1 1 50px;min-width:60px;background:var(--muted);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:center;line-height:1.2}
+  .range-seg{flex:1 1 50px;min-width:80px;background:var(--muted);color:var(--text);border-radius:6px;padding:4px;font-size:12px;text-align:center;line-height:1.2;box-shadow:0 2px 4px rgba(0,0,0,0.3);border:1px solid var(--border);}
+  /* Abwechselndes Hintergrundmuster für bessere Lesbarkeit */
+  .range-seg:nth-child(odd){background:var(--panel);}
+  .range-seg:nth-child(even){background:var(--muted);}
   .range-seg .seg-label{font-weight:bold;display:block}
   .range-seg .seg-details{font-size:10px;color:#9ca3af;display:block}
 </style>
@@ -153,12 +156,10 @@
   <div class="panel" id="p-pattern" style="border-left:6px solid var(--warm)">
     <div class="ph" style="display:flex;align-items:center;gap:10px">
       <span class="emoji">🧩</span><h2 style="margin:0">Muster-Abstände</h2><span class="pill">S = Abstände + 1</span>
-      <!-- Button zum Ein-/Ausblenden des Muster-Editors -->
-      <button id="patternToggle" class="ghost" style="margin-left:auto">Editor ein-/ausblenden</button>
+      <!-- Der Muster-Editor wird nur über den „Muster verwenden“‑Schalter gesteuert. -->
     </div>
     <label><input type="checkbox" id="usePattern"> Muster verwenden</label>
-    <!-- Der Muster-Editor wird immer eingeblendet; er kann per Button ein-/ausgeblendet werden -->
-    <!-- Der Muster-Editor ist standardmäßig ausgeblendet und kann per Button ein- oder ausgeblendet werden -->
+    <!-- Der Muster-Editor wird dynamisch durch den „Muster verwenden“‑Schalter sichtbar oder ausgeblendet -->
     <div id="patternBox" style="display:none">
       <label>Aktuelles Muster (read-only)</label>
       <div id="gapLine" class="mono" style="margin:4px 0 8px;opacity:.9">[ ]</div>
@@ -217,16 +218,16 @@
         <div><label>Modus</label>
           <select id="hotMode"><option value="require" selected>Müssen enthalten</option><option value="prefer">Bevorzugen</option></select>
         </div>
-        <div>
+        <div style="display:none">
           <label>Suche-Stufe</label>
-          <select id="searchLevel">
+          <select id="searchLevel" style="display:none">
             <option value="normal" selected>Normal</option>
             <option value="medium">Mittel</option>
             <option value="hard">Hard</option>
           </select>
           <div id="hotHardWrap" class="hint" style="display:none;margin-top:6px">
             Hard-Zeit: 
-            <select id="hotHardBudget">
+            <select id="hotHardBudget" style="display:none">
               <option value="2">≈ 2 min</option>
               <option value="5" selected>≈ 5 min</option>
               <option value="10">≈ 10 min</option>
@@ -256,7 +257,11 @@
       <div><label>Seed
         <span class="hint" style="display:block;font-weight:normal">Startwert des Zufallszahlengenerators – gleiche Seeds liefern identische Ergebnisse (ähnlich wie bei echten KENO‑Ziehungen)</span>
       </label>
-        <input type="number" id="seed" value="1" min="0"></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:flex-end">
+          <input type="number" id="seed" value="1" min="0" style="flex:1 1 auto">
+          <button id="seedRand" class="secondary" type="button">🎲 Zufallsseed</button>
+        </div>
+      </div>
       <div>
         <label>Zeitlimit</label>
         <select id="genTime">
@@ -267,7 +272,7 @@
           <option value="30">≈ 30&nbsp;min</option>
           <option value="max">Maximales Limit</option>
         </select>
-        <div class="hint">Nur relevant bei Zufall/Hot‑Paare/Frequenz</div>
+        <div class="hint">Nur relevant bei Zufall/Frequenz</div>
       </div>
     </div>
     <div class="row" style="margin-top:10px">
@@ -287,7 +292,7 @@
         <select id="genMode">
           <option value="random" selected>Zufall (kein Muster)</option>
           <option value="freq">Frequenz-basiert (häufige Zahlen bevorzugen)</option>
-          <option value="hotpairs">Hot-Paare (Top-Paare bevorzugen/erzwingen)</option>
+          <!-- „Hot-Paare“ wurde entfernt; diese Funktion ist über die Hot‑Gruppen separat erreichbar -->
         </select>
         <div class="hint">Gilt nur, wenn <b>kein Muster</b> genutzt wird.</div>
       </div>
@@ -321,7 +326,7 @@
         <div><label>Min pro Segment</label><input type="number" id="segMin" value="0" min="0" max="10"></div>
         <div><label>Max pro Segment</label><input type="number" id="segMax" value="10" min="1" max="20"></div>
       </div>
-      <div class="hint">Beispiel A=1, B=70, Breite=10 ⇒ Segmente 1-10, 11-20, … 61-70.</div>
+      <div class="hint">Beispiel: Bei A = 1, B = 70 und Segment-Länge 10 ergeben sich die Segmente 1–10, 11–20, …, 61–70.</div>
       <!-- Dynamisch generierte Zusammenfassung der Bereichsregel -->
       <div id="rangeSummary" class="hint" style="margin-top:4px"></div>
       <div id="rangeMap" class="range-map"></div>
@@ -354,8 +359,9 @@
         <label>Anzahl Vorschläge</label>
         <input type="number" id="agentCount" value="3" min="1" max="20">
       </div>
-      <div style="flex:1 1 180px;display:flex;align-items:flex-end">
+      <div style="flex:1 1 180px;display:flex;align-items:flex-end;gap:8px">
         <button id="agentGo" class="primary">Agent starten</button>
+        <button id="agentClear" class="danger">Vorschläge löschen</button>
       </div>
     </div>
     <div id="agentInfo" class="status" style="display:none;margin-top:6px"></div>
@@ -763,6 +769,13 @@
     const favVis = localStorage.getItem(FAV_VISIBLE_KEY);
     if(favVis==="0") $("#favList").style.display="none";
     toggleHardUIs();
+    // Suchstufe und Zeitbudget für Hot‑Gruppen fixieren auf „Hard“ / „Maximum“
+    const slEl = document.getElementById('searchLevel');
+    if(slEl){ slEl.value = 'hard'; }
+    const hbEl = document.getElementById('hotHardBudget');
+    if(hbEl){ hbEl.value = 'max'; }
+    const hwEl = document.getElementById('hotHardWrap');
+    if(hwEl){ hwEl.style.display = 'none'; }
     // Autoload settings
     try{
       const autoload = localStorage.getItem("keno_autoload_onstart")==="1";
@@ -811,8 +824,8 @@ function togglePatternBox(){
     const on = $("#usePattern").checked;
     const box = $("#patternBox");
     if(!box) return;
-    // Setze eine Klasse, die den Editor optisch deaktiviert, anstatt ihn zu verstecken
-    if(on){ box.classList.remove('pattern-disabled'); } else { box.classList.add('pattern-disabled'); }
+    // Zeige oder verstecke den Editor komplett anhand des Schalters
+    box.style.display = on ? "" : "none";
     try{ localStorage.setItem(USEPAT_KEY, on ? "1" : "0"); }catch{}
   }
   $("#usePattern").addEventListener("change", togglePatternBox);
@@ -840,20 +853,7 @@ function togglePatternBox(){
   $("#gapShuffle").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(shuffle(g_pattern)); });
   $("#gapReverse").addEventListener("click", ()=>{ if(!g_pattern.length){ alert("Kein Muster – zuerst anlegen."); return; } setPattern(reverseArr(g_pattern)); });
 
-  // Ein-/Ausblenden des Muster-Editors über den Toggle-Button
-  const btnPatternToggle = document.getElementById('patternToggle');
-  if(btnPatternToggle){
-    btnPatternToggle.addEventListener('click', ()=>{
-      const box = document.getElementById('patternBox');
-      if(!box) return;
-      // Toggle display
-      if(box.style.display === 'none'){
-        box.style.display = '';
-      } else {
-        box.style.display = 'none';
-      }
-    });
-  }
+  // Der Muster-Editor wird nun allein über den „Muster verwenden“‑Schalter gesteuert. Der alte Toggle‑Button entfällt.
 
   /* ===================== Varianten ===================== */
   function computeStats(A,B){
@@ -2054,6 +2054,34 @@ function togglePatternBox(){
       if(agentInfo){ agentInfo.textContent = results.length ? 'Agent hat ' + Math.min(results.length,nRes) + ' Vorschläge erstellt.' : 'Keine Vorschläge gefunden.'; }
       const pAgent = document.getElementById('p-agent');
       if(pAgent) scrollToNode(pAgent);
+    });
+  }
+
+  // Zufälligen Seed generieren (Kombinationen‑Panel)
+  const btnSeedRand = document.getElementById('seedRand');
+  if(btnSeedRand){
+    btnSeedRand.addEventListener('click', ()=>{
+      let val = 0;
+      if(window.crypto && crypto.getRandomValues){
+        const arr = new Uint32Array(1);
+        crypto.getRandomValues(arr);
+        val = arr[0] >>> 0;
+      } else {
+        val = Math.floor(Math.random() * 0xFFFFFFFF) >>> 0;
+      }
+      const seedInput = document.getElementById('seed');
+      if(seedInput) seedInput.value = val;
+      text($("#statusTop"), "Seed zufällig generiert: "+val);
+    });
+  }
+  // Agent‑Ergebnisse löschen
+  const btnAgentClear = document.getElementById('agentClear');
+  if(btnAgentClear){
+    btnAgentClear.addEventListener('click', ()=>{
+      const agentResultsEl = document.getElementById('agentResults');
+      if(agentResultsEl) agentResultsEl.innerHTML = '';
+      const agentInfoEl = document.getElementById('agentInfo');
+      if(agentInfoEl){ agentInfoEl.textContent = ''; agentInfoEl.style.display = 'none'; }
     });
   }
 
