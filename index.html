@@ -297,6 +297,19 @@
         <div class="hint">Nur relevant bei Zufall/Frequenz</div>
       </div>
     </div>
+    <!-- Optionale mathematische Formel für die Seed‑Erzeugung -->
+    <div class="row" style="margin-top:6px">
+      <div>
+        <label>Seed‑Formel</label>
+        <select id="seedFormula">
+          <option value="crypto" selected>Krypto‑Zufall</option>
+          <option value="pi">Pi‑Ziffern</option>
+          <option value="fib">Fibonacci</option>
+          <option value="prime">Primzahl</option>
+        </select>
+        <div class="hint">Mathematische Basis für den automatisch erzeugten Seed</div>
+      </div>
+    </div>
     <div class="row" style="margin-top:10px">
       <button id="go" class="primary">Generieren</button>
       <button id="save" class="secondary">Als CSV speichern</button>
@@ -367,37 +380,7 @@
   </div>
 
 
-  <!-- 🤖 Agent Mode -->
-  <!--
-    Der Agent‑Modus analysiert das geladene Archiv und schlägt automatisch eine oder mehrere Kombinationen
-    basierend auf häufigen Zahlen und häufigen Paaren vor. Er nutzt dabei alle verfügbaren Ziehungen,
-    um Kombinationen zu generieren, die theoretisch eine höhere Trefferwahrscheinlichkeit haben können.
-  -->
-  <div class="panel" id="p-agent" style="border-left:6px solid var(--accent2)">
-    <div class="ph"><span class="emoji">🤖</span><h2 style="margin:0">Agent‑Modus</h2></div>
-    <div class="hint">Der Agent analysiert das komplette Archiv und schlägt automatisch vielversprechende Kombinationen vor.</div>
-    <div class="row" style="margin-top:6px;flex-wrap:wrap;gap:12px">
-      <div>
-        <label>Anzahl Vorschläge</label>
-        <!-- Die maximale Anzahl wurde erhöht, damit der Agent mehr Varianten liefern kann. -->
-        <input type="number" id="agentCount" value="5" min="1" max="30">
-      </div>
-      <div>
-        <label>Agent‑Modus</label>
-        <select id="agentStrategy">
-          <option value="standard" selected>Standard</option>
-          <option value="experimental">Experimentell</option>
-          <option value="recency">Recency</option>
-        </select>
-      </div>
-      <div style="flex:1 1 180px;display:flex;align-items:flex-end;gap:8px">
-        <button id="agentGo" class="primary">Agent starten</button>
-        <button id="agentClear" class="danger">Vorschläge löschen</button>
-      </div>
-    </div>
-    <div id="agentInfo" class="status" style="display:none;margin-top:6px"></div>
-    <div id="agentResults" class="results"></div>
-  </div>
+  <!-- 🤖 Agent‑Modus entfernt -->
 
   <!-- 🧠 Tipp prüfen -->
   <div class="panel" id="p-analyse" style="border-left:6px solid var(--accent)">
@@ -2168,16 +2151,78 @@ function togglePatternBox(){
   if(btnSeedRand){
     btnSeedRand.addEventListener('click', ()=>{
       let seedStr = '';
-      // Verwende crypto.getRandomValues für einen 64‑Bit‑Seed (Zufallszahl in hex), fallback auf Math.random
-      if(window.crypto && crypto.getRandomValues){
-        const arr = new Uint32Array(2);
-        crypto.getRandomValues(arr);
-        // Kombiniere zwei 32‑Bit‑Blöcke zu einem 64‑Bit‑BigInt und konvertiere in dezimale Zeichen
-        const bi = (BigInt(arr[0]) << 32n) | BigInt(arr[1]);
-        seedStr = bi.toString();
+      // Bestimme die gewählte Formel für die Seed‑Generierung
+      const formulaEl = document.getElementById('seedFormula');
+      const formula = formulaEl ? (formulaEl.value || 'crypto') : 'crypto';
+      if(formula === 'pi'){
+        // Verwende eine vordefinierte Folge von Pi‑Ziffern. Wähle ein zufälliges Teilstück als Seed.
+        const piDigits = "31415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679";
+        const subLen = 12;
+        let randIndex = 0;
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          // tmp[0] ist ein normales 32‑Bit‑Integer. Für den Index genügt eine numerische Modulo‑Operation.
+          randIndex = tmp[0] % (piDigits.length - subLen);
+        } else {
+          randIndex = Math.floor(Math.random() * (piDigits.length - subLen));
+        }
+        seedStr = piDigits.slice(randIndex, randIndex + subLen);
+      } else if(formula === 'fib'){
+        // Wähle eine zufällige Position innerhalb eines moderaten Bereichs und berechne die Fibonacci‑Zahl.
+        let n = 20;
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          n = 10 + (tmp[0] % 30);
+        } else {
+          n = 10 + Math.floor(Math.random() * 30);
+        }
+        let a = 0n, b = 1n;
+        for(let i=0; i<n; i++){
+          const t = a + b;
+          a = b;
+          b = t;
+        }
+        seedStr = a.toString();
+      } else if(formula === 'prime'){
+        // Wähle eine zufällige Position und ermittle die entsprechende Primzahl.
+        let target = 50;
+        if(window.crypto && crypto.getRandomValues){
+          const tmp = new Uint32Array(1);
+          crypto.getRandomValues(tmp);
+          target = 20 + (tmp[0] % 80);
+        } else {
+          target = 20 + Math.floor(Math.random() * 80);
+        }
+        function isPrime(num){
+          if(num < 2) return false;
+          for(let i=2; i*i <= num; i++){
+            if(num % i === 0) return false;
+          }
+          return true;
+        }
+        let count = 0;
+        let num = 1;
+        let prime = 2;
+        while(count < target){
+          num++;
+          if(isPrime(num)){
+            count++;
+            prime = num;
+          }
+        }
+        seedStr = prime.toString();
       } else {
-        // Fallback: Generiere eine sehr große Zufallszahl mit Math.random
-        seedStr = Math.floor(Math.random() * 1e16).toString();
+        // Standard: Verwende crypto.getRandomValues für einen 64‑Bit‑Seed, fallback auf Math.random
+        if(window.crypto && crypto.getRandomValues){
+          const arr = new Uint32Array(2);
+          crypto.getRandomValues(arr);
+          const bi = (BigInt(arr[0]) << 32n) | BigInt(arr[1]);
+          seedStr = bi.toString();
+        } else {
+          seedStr = Math.floor(Math.random() * 1e16).toString();
+        }
       }
       const seedInput = document.getElementById('seed');
       if(seedInput) seedInput.value = seedStr;
