@@ -29,8 +29,6 @@
   }
   h1,h2,h3,h4,h5,h6{
     font-family:'Orbitron', sans-serif;
-    /* Leichter Neon-Schimmer für Überschriften */
-    text-shadow: 0 0 4px var(--accent2), 0 0 8px var(--accent);
   }
   a{color:#93c5fd;text-decoration:none}
   .box{max-width:1140px;margin:0 auto}
@@ -50,12 +48,15 @@
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>div{flex:1 1 220px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
-  .panel{background:linear-gradient(180deg, rgba(20,33,61,0.95) 0%, rgba(10,17,40,0.95) 100%);border:1px solid var(--border);border-radius:14px;padding:16px;margin:14px 0 0;box-shadow:0 4px 10px rgba(0,0,0,0.4);transition:transform 0.3s, box-shadow 0.4s;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;margin:12px 0 0}
   /* Schlagschatten für die Panels für einen moderneren Look */
-  /* Panel Hover-Effekt: sanftes Schweben mit Neon-Schimmer */
+  .panel{
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    transition:transform 0.2s, box-shadow 0.3s;
+  }
   .panel:hover{
-    transform:translateY(-3px);
-    box-shadow:0 8px 14px rgba(0,0,0,0.45), 0 0 10px var(--accent2);
+    transform:translateY(-2px);
+    box-shadow:0 6px 10px rgba(0,0,0,0.35);
   }
   .ph{display:flex;align-items:center;gap:10px;margin:0 0 8px}
   .emoji{font-size:22px}
@@ -302,8 +303,17 @@
         <label>Seed‑Formel</label>
         <select id="seedFormula">
           <option value="crypto" selected>Krypto‑Zufall</option>
+          <option value="pi">Pi‑Ziffern</option>
           <option value="fib">Fibonacci</option>
           <option value="prime">Primzahl</option>
+          <option value="fac">Fakultät</option>
+          <option value="lucas">Lucas</option>
+          <option value="tri">Dreieckszahl</option>
+          <option value="square">Quadratzahl</option>
+          <option value="cat">Catalan</option>
+          <option value="pell">Pell</option>
+          <option value="trib">Tribonacci</option>
+          <option value="bell">Bell‑Zahl</option>
         </select>
         <div class="hint">Mathematische Basis für den automatisch erzeugten Seed</div>
       </div>
@@ -325,12 +335,6 @@
         <select id="genMode">
           <option value="random" selected>Zufall (kein Muster)</option>
           <option value="freq">Frequenz-basiert (häufige Zahlen bevorzugen)</option>
-          <!-- Neue intelligente Modi für KENO Typ 10 -->
-          <option value="smart10">Intelligent (Typ 10)</option>
-          <option value="smart10-hot">Intelligent (Typ 10 · Hot)</option>
-          <option value="smart10-cold">Intelligent (Typ 10 · Cold)</option>
-          <option value="smart10-mix">Intelligent (Typ 10 · Mix)</option>
-          <option value="smart10-cover">Intelligent (Typ 10 · Abdeckung)</option>
           <!-- „Hot-Paare“ wurde entfernt; diese Funktion ist über die Hot‑Gruppen separat erreichbar -->
         </select>
         <div class="hint">Gilt nur, wenn <b>kein Muster</b> genutzt wird.</div>
@@ -1323,8 +1327,7 @@ function togglePatternBox(){
         const strategy = p.strategy || 'random';
         const rangeRulesOn = !!p.rangeRulesOn;
         const segSize = p.segSize|0, segMin = p.segMin|0, segMax = p.segMax|0;
-        // Kombiniere den übergebenen Seed mit einem zufälligen Salt, um mehr Varianz zu erzeugen
-        const baseSeed = (((p.seed>>>0) ^ ((p.seedSalt || 0)>>>0)) >>> 0) || 1;
+        const baseSeed = (p.seed>>>0) || 1;
         const rand = rng(baseSeed);
         if(p.mode==='pattern' || strategy==='pattern'){
           const gaps=p.gaps||[];
@@ -1516,13 +1519,6 @@ function togglePatternBox(){
       }
     }catch(err){ console.error('Seed‑Formel konnte nicht angewendet werden:', err); }
 
-    // Erzeuge zusätzlich einen Zufalls-Salt für den Seed, um bei jedem Lauf unterschiedliche
-    // Startwerte im Worker zu erhalten. Dadurch ist der Zufallsmodus weniger vorhersehbar.
-    let seedSalt32 = 0;
-    try{
-      if(window.crypto && crypto.getRandomValues){ const tmp = new Uint32Array(1); crypto.getRandomValues(tmp); seedSalt32 = tmp[0]>>>0; }
-      else{ seedSalt32 = (Math.random()*0xFFFFFFFF)>>>0; }
-    }catch{ seedSalt32 = (Math.random()*0xFFFFFFFF)>>>0; }
     const params = {
       A,B,S:Ssize,maxOv,
       drawsBits: buildDrawBits(A,B),
@@ -1530,20 +1526,9 @@ function togglePatternBox(){
       want:+$("#want").value,
       level,
       budgetSec,
-      seed: parseSeedVal($("#seed").value),
-      seedSalt: seedSalt32
+      seed: parseSeedVal($("#seed").value)
     };
     const genModeUI = $("#genMode").value || "random";
-    // Neuer intelligenter Modus: Bei einem "smart10"-Modus wird die Generierung direkt im Frontend ausgeführt
-    // und der Web-Worker übersprungen. Dadurch können heuristische Algorithmen genutzt werden.
-    if(genModeUI && genModeUI.startsWith("smart10")){
-      // UI zurücksetzen, bevor die intelligente Generierung startet
-      text($("#genInfo"), "Starte… (Intelligenter Modus)");
-      $("#results").innerHTML = "";
-      $("#resultStatus").style.display = "none";
-      runSmart(genModeUI);
-      return;
-    }
     if(!usePat){
       // Kein Muster – Zufall/Frequenz/Hot-Paare nutzen
       params.strategy = genModeUI;
@@ -1954,230 +1939,6 @@ function togglePatternBox(){
   }
   // Event für den Agent‑Modus
   const btnAgentGo = document.getElementById('agentGo');
-
-  /* ===================== Intelligente KENO-Varianten (Typ 10) ===================== */
-  // Hilfsfunktion: Gewichte aus dem Archiv basierend auf Modus berechnen
-  function buildArchiveWeights(mode){
-    const A = +$("#rangeFrom").value, B = +$("#rangeTo").value;
-    const w = new Map();
-    for(let z=A; z<=B; z++) w.set(z, 1.0);
-    if(!g_draws || !g_draws.length) return w;
-    // Häufigkeiten pro Zahl im Archiv
-    const freq = new Map();
-    for(let z=A; z<=B; z++) freq.set(z, 0);
-    for(const draw of g_draws){
-      for(const z of draw){
-        if(z>=A && z<=B) freq.set(z, (freq.get(z)||0)+1);
-      }
-    }
-    const vals=[...freq.values()];
-    const max=Math.max(1, ...vals);
-    const min=Math.min(...vals);
-    for(let z=A; z<=B; z++){
-      const f = (freq.get(z)||0);
-      const hot = (f - min) / Math.max(1, (max-min)); // normalisiert 0..1
-      if(mode==="hot") w.set(z, 1.0 + hot);
-      else if(mode==="cold") w.set(z, 1.0 + (1.0 - hot));
-      else if(mode==="mix") w.set(z, 1.0 + (0.5*hot + 0.5*(1.0-hot)));
-      else w.set(z, 1.0);
-    }
-    return w;
-  }
-  // Kernheuristik: Erzeuge mehrere Typ-10-Varianten mit smarter Verteilung
-  function generateSmart10Variants(mode){
-    const want = Math.max(1, +( $("#want").value || 50 ));
-    const k = 10;
-    // Synchronisiere den KENO‑Typ auf 10
-    if(+$("#kenoType").value !== 10){ $("#kenoType").value = "10"; }
-    const A = +$("#rangeFrom").value, B = +$("#rangeTo").value;
-    const maxOv = Math.max(0, +( $("#maxOv").value || 4 ));
-    const target = (want * k) / (B - A + 1);
-    const tMax = Math.ceil(target) + 1;
-    // Modus extrahieren: "smart10-hot" → "hot"
-    const submode = String(mode||"smart10").replace("smart10","").replace(/^-/,"");
-    const w = buildArchiveWeights(submode);
-    const counts = new Map();
-    for(let z=A; z<=B; z++) counts.set(z, 0);
-    const pairUsed = new Map();
-    function pairKey(a,b){ return (a<b) ? `${a}-${b}` : `${b}-${a}`; }
-    function overlapSize(a,b){ let s=0; for(const x of a) if(b.has(x)) s++; return s; }
-    const variants=[];
-    // Greedy Aufbau
-    outer: for(let t=0; t<want; t++){
-      const cur = new Set();
-      while(cur.size < k){
-        const candidates=[];
-        for(let z=A; z<=B; z++){
-          if(cur.has(z)) continue;
-          if(counts.get(z) >= tMax) continue;
-          // Überschneidung mit bestehenden Scheinen prüfen
-          let ok=true;
-          for(const v of variants){
-            const ov = overlapSize(new Set([...cur, z]), v);
-            if(ov > maxOv){ ok=false; break; }
-          }
-          if(!ok) continue;
-          // Strafe für bereits genutzte Paare mit der aktuellen Auswahl
-          let penalty = 0;
-          for(const x of cur){
-            const key = pairKey(z,x);
-            penalty += (pairUsed.get(key)||0);
-          }
-          const under = Math.max(0, target - counts.get(z));
-          const score = 1.0*under + 0.35*(w.get(z)||1) - 0.75*penalty;
-          candidates.push({z, score});
-        }
-        if(!candidates.length){
-          // Fallback: liste alle verbliebenen, damit die Schleife nicht festhängt
-          for(let z=A; z<=B; z++){
-            if(!cur.has(z)) candidates.push({z, score: Math.random()*1e-6});
-          }
-          if(!candidates.length) break outer;
-        }
-        candidates.sort((a,b)=> b.score - a.score);
-        cur.add(candidates[0].z);
-      }
-      // Update Zähler und Paare
-      for(const z of cur) counts.set(z, counts.get(z)+1);
-      const arr=[...cur].sort((a,b)=>a-b);
-      for(let i=0; i<arr.length; i++){
-        for(let j=i+1; j<arr.length; j++){
-          const key = pairKey(arr[i], arr[j]);
-          pairUsed.set(key, (pairUsed.get(key)||0)+1);
-        }
-      }
-      variants.push(new Set(arr));
-    }
-    return variants.map(s => [...s].sort((a,b)=>a-b));
-  }
-  // Alternative: Maximale Paarabdeckung (stärkere Strafe für Paarwiederholungen)
-  function generateSmart10Cover(){
-    const want = Math.max(1, +( $("#want").value || 50 ));
-    const k = 10;
-    const A = +$("#rangeFrom").value, B = +$("#rangeTo").value;
-    const maxOv = Math.max(0, +( $("#maxOv").value || 4 ));
-    const target = (want * k) / (B - A + 1);
-    const tMax = Math.ceil(target) + 2;
-    const counts = new Map();
-    for(let z=A; z<=B; z++) counts.set(z, 0);
-    const pairUsed = new Map();
-    function pairKey(a,b){ return (a<b) ? `${a}-${b}` : `${b}-${a}`; }
-    function overlapSize(a,b){ let s=0; for(const x of a) if(b.has(x)) s++; return s; }
-    const variants=[];
-    for(let t=0; t<want; t++){
-      const cur = new Set();
-      while(cur.size < k){
-        let best=null;
-        for(let z=A; z<=B; z++){
-          if(cur.has(z)) continue;
-          if(counts.get(z)>=tMax) continue;
-          let ok=true;
-          for(const v of variants){
-            const ov = overlapSize(new Set([...cur, z]), v);
-            if(ov > maxOv){ ok=false; break; }
-          }
-          if(!ok) continue;
-          // Strafe für Paarwiederholungen
-          let penalty=0;
-          for(const x of cur){
-            penalty += (pairUsed.get(pairKey(z,x))||0);
-          }
-          const score = 0.7*(Math.max(0, target - counts.get(z))) - 1.1*penalty;
-          if(!best || score > best.score){ best = {z, score}; }
-        }
-        if(!best) break;
-        cur.add(best.z);
-      }
-      for(const z of cur) counts.set(z, counts.get(z)+1);
-      const arr=[...cur].sort((a,b)=>a-b);
-      for(let i=0; i<arr.length; i++){
-        for(let j=i+1; j<arr.length; j++){
-          const key = pairKey(arr[i], arr[j]);
-          pairUsed.set(key, (pairUsed.get(key)||0)+1);
-        }
-      }
-      variants.push(new Set(arr));
-    }
-    return variants.map(s => [...s].sort((a,b)=>a-b));
-  }
-  // Monte-Carlo Simulation: Erfolgschance für ≥6 Treffer berechnen
-  function simulateHitRates(variants, runs=20000){
-    const A = +$("#rangeFrom").value, B = +$("#rangeTo").value;
-    // Pool erstellen
-    const pool=[];
-    for(let z=A; z<=B; z++) pool.push(z);
-    function draw20(){
-      const bag = pool.slice();
-      const out = new Set();
-      for(let i=0; i<20; i++){
-        const idx = Math.floor(Math.random()*bag.length);
-        const val = bag[idx];
-        out.add(val);
-        bag.splice(idx,1);
-      }
-      return out;
-    }
-    let ge6=0;
-    for(let r=0; r<runs; r++){
-      const d = draw20();
-      let best=0;
-      for(const v of variants){
-        let h=0;
-        for(const z of v){
-          if(d.has(z)) h++;
-        }
-        if(h>best) best = h;
-        if(best===10) break;
-      }
-      if(best>=6) ge6++;
-    }
-    return ge6 / runs;
-  }
-  // Ergebnisse rendern
-  function renderCombosToUI(list){
-    const out = list.map((arr,i) => (
-      '<div class="resItem"><span class="badge">#' + String(i+1).padStart(2,'0') + '</span>' +
-      '<span class="resNums">' + arr.join(' ') + '</span></div>'
-    )).join('');
-    html($("#results"), out);
-  }
-  // Hauptfunktion, die den Smart-Modus ausführt und die UI aktualisiert
-  async function runSmart(mode){
-    $("#genProg").style.display = "";
-    $("#genProg").value = 0;
-    text($("#genInfo"), "Erzeuge intelligente Varianten …");
-    await new Promise(r => setTimeout(r,10));
-    let variants;
-    if(mode === "smart10-cover") variants = generateSmart10Cover();
-    else variants = generateSmart10Variants(mode);
-    $("#genProg").value = 0.6;
-    renderCombosToUI(variants);
-    text($("#genInfo"), "Simuliere Erfolgsindikator (≥6 Treffer) …");
-    await new Promise(r => setTimeout(r,10));
-    const prob = simulateHitRates(variants, 20000);
-    $("#genProg").value = 1;
-    $("#genProg").style.display = "none";
-    const want = variants.length;
-    const k = 10;
-    const A = +$("#rangeFrom").value, B = +$("#rangeTo").value;
-    const cnt = new Map();
-    for(const v of variants){
-      for(const z of v){
-        cnt.set(z, (cnt.get(z)||0)+1);
-      }
-    }
-    const vals=[...cnt.values()];
-    const min=Math.min(...vals);
-    const max=Math.max(...vals);
-    const avg = vals.reduce((a,b) => a+b, 0) / vals.length;
-    html($("#resultStatus"),
-      'Varianten: ' + want + ' · Typ ' + k + ' · Range ' + A + '-' + B + '<br>' +
-      'Zahlenhäufigkeit min/Ø/max: ' + min + '/' + avg.toFixed(2) + '/' + max + '<br>' +
-      'Erfolgsindikator (Monte-Carlo): P(best≥6) ≈ ' + (100*prob).toFixed(2) + '%'
-    );
-    $("#resultStatus").style.display = "";
-    text($("#genInfo"), "Fertig.");
-  }
   if(btnAgentGo){
     btnAgentGo.addEventListener('click', function(){
       // Prüfe Archiv
