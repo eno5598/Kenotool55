@@ -1783,4 +1783,191 @@ TEST_LOG:
 
   /* ===================== Favoriten rudimentär (unverändert) ===================== */
   // (Die bestehenden Favoriten-Funktionen bleiben erhalten – hier nur Platzhalter, falls benötigt.)
+    /* ===================== Favoriten (Speichern / Laden / Rendern) ===================== */
+  function loadFavorites(){
+    try{ return JSON.parse(localStorage.getItem(FAV_KEY)||"[]"); }catch{ return []; }
+  }
+  function saveFavorites(list){
+    try{ localStorage.setItem(FAV_KEY, JSON.stringify(list||[])); }catch{}
+  }
+  function renderFavorites(){
+    const list = loadFavorites();
+    const box=$("#favList"); box.innerHTML="";
+    list.forEach((it,idx)=>{
+      const card=document.createElement("div");
+      card.className="favCard";
+      const nums = (it.nums||[]).map(n=>String(n).padStart(2," ")).join(" ");
+      card.innerHTML = `
+        <div class="favHead">
+          <div class="favNums mono">${nums}</div>
+          <div class="favBtns">
+            <button class="secondary" data-act="copy" data-idx="${idx}">📋</button>
+            <button class="secondary" data-act="use" data-idx="${idx}">➕</button>
+            <button class="danger" data-act="del" data-idx="${idx}">✖</button>
+          </div>
+        </div>
+        <div class="favNote">${(it.note||"").replace(/</g,"&lt;")}</div>
+      `;
+      box.appendChild(card);
+    });
+  }
+  $("#favToggle").addEventListener("click", ()=>{
+    const el=$("#favList"); const on = (el.style.display!=="none");
+    el.style.display = on ? "none" : "";
+    try{ localStorage.setItem(FAV_VISIBLE_KEY, on ? "0" : "1"); }catch{}
+  });
+  $("#favExport").addEventListener("click", ()=>{
+    const list = loadFavorites();
+    downloadText(`keno_favorites_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`, JSON.stringify(list,null,2));
+  });
+  $("#favClear").addEventListener("click", ()=>{
+    if(!confirm("Alle Favoriten wirklich löschen?")) return;
+    saveFavorites([]); renderFavorites();
+  });
+  $("#favImportFile").addEventListener("change", async ()=>{
+    const f=$("#favImportFile").files[0]; if(!f) return;
+    try{
+      const txt = await f.text();
+      const obj = JSON.parse(txt);
+      if(!Array.isArray(obj)) throw new Error("JSON erwartet Array.");
+      saveFavorites(obj); renderFavorites();
+    }catch(e){ alert("Import fehlgeschlagen: "+(e?.message||e)); }
+  });
+  document.getElementById("p-favs").addEventListener("click",(e)=>{
+    const btn=e.target.closest("button[data-act]"); if(!btn) return;
+    const act=btn.dataset.act, idx=+btn.dataset.idx;
+    const list=loadFavorites(); const it=list[idx]; if(!it) return;
+    if(act==="copy"){
+      const t=(it.nums||[]).join(" ");
+      navigator.clipboard.writeText(t).then(()=>alert("Kopiert!")).catch(()=>alert("Konnte nicht kopieren."));
+    }else if(act==="use"){
+      // füge die Favoriten-Zahlen in die aktuellen Ergebnisse oben ein (prepend)
+      const cur = $("#results")._variants || [];
+      $("#results")._variants = [uniqSorted(it.nums||[])].concat(cur);
+      renderResults($("#results")._variants);
+      scrollToNode(document.getElementById("p-results"));
+    }else if(act==="del"){
+      list.splice(idx,1); saveFavorites(list); renderFavorites();
+    }
+  });
+
+  /* ===================== Tipp analysieren ===================== */
+  function parseTipLine(s){
+    return (s.match(/\d+/g)||[]).map(x=>+x).filter(Number.isFinite).sort((a,b)=>a-b);
+  }
+  $("#checkTip").addEventListener("click", ()=>{
+    const arr = parseTipLine($("#tipInput").value);
+    if(!arr.length){ alert("Bitte Zahlen eingeben."); return; }
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const v=arr.filter(x=> x>=A && x<=B);
+    if(v.length!==arr.length){ alert(`Einige Zahlen liegen außerhalb ${A}-${B}.`); }
+    const thrA=+$("#thrA").value, thrB=+$("#thrB").value;
+    const res=$("#results")._variants||[];
+    let overA=[], overB=[];
+    res.forEach((w,idx)=>{
+      const s=new Set(w); let ov=0; for(const x of v) if(s.has(x)) ov++;
+      if(ov>=thrA) overA.push({idx,ov});
+      if(ov>=thrB) overB.push({idx,ov});
+    });
+    const lines=[
+      `Tipp: ${v.join(" ")}`,
+      `Schwellen: ≥${thrA} und ≥${thrB}`,
+      `Treffer ≥${thrA}: ${overA.length} Varianten`,
+      `Treffer ≥${thrB}: ${overB.length} Varianten`,
+    ];
+    const st=$("#tipStatus"); st.style.display=""; st.textContent = lines.join("\n");
+    // Speichern als Favorit optional
+  });
+  $("#saveTipFav").addEventListener("click", ()=>{
+    const arr = parseTipLine($("#tipInput").value);
+    if(!arr.length){ alert("Bitte Zahlen eingeben."); return; }
+    const note=prompt("Notiz (optional):")||"";
+    const list=loadFavorites();
+    list.unshift({nums:uniqSorted(arr), note, at:Date.now()});
+    saveFavorites(list); renderFavorites();
+    alert("Tipp gespeichert.");
+  });
+
+  /* ===================== Bereichs-Regeln (UI) ===================== */
+  function updateRangeSummary(){
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const segSize=+$("#segSize").value, smin=+$("#segMin").value, smax=+$("#segMax").value;
+    const map=$("#rangeMap"); map.innerHTML="";
+    const summary=$("#rangeSummary");
+    if(!$("#useRangeRules").checked){ summary.textContent="(aus)"; return; }
+    const segs=[];
+    for(let s=A; s<=B; s+=segSize){
+      const e=Math.min(B, s+segSize-1);
+      segs.push([s,e]);
+    }
+    const txt=`${segs.length} Segmente à ${segSize} → pro Segment ${smin}..${smax}`;
+    summary.textContent=txt;
+    segs.forEach(([s,e],i)=>{
+      const el=document.createElement("div");
+      el.className="range-seg";
+      el.innerHTML = `<span class="seg-label">${s}–${e}</span><span class="seg-details">min ${smin} · max ${smax}</span>`;
+      map.appendChild(el);
+    });
+  }
+  $("#useRangeRules").addEventListener("change", updateRangeSummary);
+  ["segSize","segMin","segMax","rangeFrom","rangeTo"].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.addEventListener("input", updateRangeSummary);
+  });
+
+  /* ===================== Ergebnisse sichern im DOM (für Export-Buttons) ===================== */
+  // bereits in runGenerator/runOmega/runMother: $("#results")._variants = variants;
+
+  /* ===================== Tests / Akzeptanzkriterien (Kurzlauf) ===================== */
+  async function runEmbeddedTests(){
+    const log=[];
+    try{
+      // 1. Sanity
+      const want=50; const prev=$("#results")._variants;
+      const vars = await generateSmartVariants("smart10-mix", want, null);
+      log.push(`Sanity: want=${want} → got=${vars.length}`);
+      // 2. Keine langen Folgen
+      let badRuns=0;
+      for(const v of vars){ if(hasRunOf4(v)) badRuns++; }
+      log.push(`No 4+ runs: ${badRuns===0?"OK":"BAD ("+badRuns+")"}`);
+      // 3. MaxOverlap
+      const maxOv=+$("#maxOv").value||5; let maxSeen=0;
+      for(let i=0;i<vars.length;i++){
+        const a=new Set(vars[i]);
+        for(let j=i+1;j<vars.length;j++){
+          let ov=0; for(const x of vars[j]) if(a.has(x)) ov++;
+          if(ov>maxSeen) maxSeen=ov;
+        }
+      }
+      log.push(`MaxOverlap seen=${maxSeen} ≤ ${maxOv} : ${maxSeen<=maxOv?"OK":"BAD"}`);
+      // 4. Verteilung
+      const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+      const cnt=new Map(); for(const v of vars) for(const z of v) cnt.set(z,(cnt.get(z)||0)+1);
+      const vals=[...cnt.values()]; const mn=Math.min(...vals), mx=Math.max(...vals), avg=vals.reduce((a,b)=>a+b,0)/vals.length;
+      log.push(`Distribution: min=${mn}, avg=${avg.toFixed(2)}, max=${mx}, diff=${mx-mn} (≤4 ideal)`);
+      // 5. Simulation (kurz 2k)
+      const sim = await simulateHitRates(vars, 2000);
+      log.push(`Sim: P(best≥6)≈ ${(100*sim.pBestGE6).toFixed(2)}%`);
+      // 6. Isolation check (Omega)
+      setIsolation(true, new Set(["p-archiv","p-omega"]));
+      const hid = ["p-settings","p-pattern","p-hot","p-gen","p-range-rules","p-stats","p-analyse","p-favs","p-results"].every(id=> document.getElementById(id).style.display==="none");
+      log.push(`Omega isolation: ${hid?"OK":"BAD"}`);
+      setIsolation(false);
+      // 7. Export-Struktur
+      const meta={mode:"test",ts:Date.now()}, json=JSON.stringify({meta,variants:vars});
+      log.push(`Export JSON length=${json.length}`);
+    }catch(e){
+      log.push("TEST ERROR: "+(e?.message||e));
+    }
+    // in Header-Kommentar wäre zu lang – deshalb Konsole + Status-Ausgabe
+    console.log("[TEST_LOG]\\n"+log.join("\\n"));
+    const rs=$("#resultStatus"); rs.style.display=""; rs.textContent = "Testlauf:\n"+log.join("\n");
+  }
+
+  // Optional automatisch kleines Testpaket nach Laden (kann kommentiert werden)
+  // setTimeout(()=>{ runEmbeddedTests(); }, 800);
+
+  /* ===================== Sicherheitshinweis ===================== */
+  // Keine Garantieversprechen; nur Statistik und Simulation werden gezeigt.
+  // Es werden keine Daten an Server übertragen. Alles läuft lokal im Browser.
   
