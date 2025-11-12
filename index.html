@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>KENO – Mini Generator (Archiv + sinnvolle Verteilung)</title>
+<title>KENO – Generator (Auto-Archiv + Verteilung)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -17,28 +17,26 @@
   .panel{background:linear-gradient(180deg,var(--panel),#0f1730);border:1px solid #213054;border-radius:14px;padding:14px;margin-top:14px;box-shadow:0 6px 18px rgba(0,0,0,.35)}
   label{display:block;margin-bottom:6px;font-weight:600}
   input[type="number"],input[type="text"],select{width:100%;padding:10px;border-radius:10px;border:1px solid var(--muted);background:#0a1327;color:var(--text)}
-  input[type="file"]{width:100%}
+  input[type="file"],input[type="url"]{width:100%}
   button{padding:10px 14px;border-radius:10px;border:0;cursor:pointer;font-weight:800}
   .primary{background:linear-gradient(135deg,#37e6ad,#51f1ff);color:#031a14}
-  .secondary{background:#14213d;color:var(--text);border:1px solid var(--muted)}
-  .ghost{background:transparent;border:1px dashed var(--muted);color:var(--text)}
+  .secondary{background:#14213d;color:var(--text);border:1px solid #62749a44}
+  .ghost{background:transparent;border:1px dashed #62749a44;color:var(--text)}
   .danger{background:#6b1220;color:#ffe6ea;border:1px solid #8a1a2c}
   .row{display:flex;gap:10px;flex-wrap:wrap}
   .row>div{flex:1 1 220px}
-  .status{margin-top:6px;padding:10px;border-radius:10px;border:1px solid var(--muted);background:#0a1327;white-space:pre-wrap}
+  .status{margin-top:6px;padding:10px;border-radius:10px;border:1px solid var(--muted);background:#0a1327;white-space:pre-wrap;min-height:42px}
   .results .item{display:flex;gap:8px;align-items:center;background:#0a1327;border:1px solid var(--muted);padding:8px;border-radius:10px;margin:6px 0}
-  .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--muted);border-radius:999px;padding:4px 10px;background:#0a1327}
+  .badge{display:inline-flex;align-items:center;gap:6px;border:1px solid #62749a44;border-radius:999px;padding:4px 10px;background:#0a1327}
   .mono{font-family:ui-monospace,Consolas,Menlo,monospace}
-  progress{width:100%;height:12px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
   .hint{color:#b7c2dd;font-size:13px}
 </style>
 </head>
 <body>
 <div class="box">
-  <h1>🗂️ KENO – Mini Generator</h1>
+  <h1>🗂️ KENO – Generator</h1>
   <div class="panel">
-    <p class="hint">Liest das offizielle Archiv (CSV/TXT oder ZIP), erzeugt <b>sinnvoll verteilte</b> Varianten mit robustem Zufall und optionaler Berücksichtigung der letzten 10–50 Ziehungen.</p>
+    <p class="hint">Automatisches Archiv-Laden (ZIP/CSV/TXT), KENO-Typ wählen, Varianten sinnvoll verteilen, optional Heiß/Kalt (letzte 10–50). Dieses File kann allein lokal laufen.</p>
   </div>
 
   <!-- Archiv -->
@@ -46,16 +44,31 @@
     <h2>Archiv</h2>
     <div class="row">
       <div>
-        <label>Datei wählen (CSV/TXT oder ZIP)</label>
-        <input type="file" id="file" accept=".csv,.txt,.zip,text/plain,text/csv,application/zip">
-        <div class="hint">Offizielles ZIP (manuell laden): <a href="https://www.lotto-bayern.de/static/gamebroker_2/de/download_files/archiv_keno.zip" target="_blank" rel="noopener">archiv_keno.zip</a></div>
+        <label>Auto-Archiv-URL</label>
+        <input type="url" id="autoUrl" placeholder="https://…/archiv_keno.zip">
+        <div class="row" style="margin-top:6px">
+          <button id="autoLoad" class="primary">Auto laden</button>
+          <button id="remember" class="secondary">URL merken</button>
+        </div>
+        <div class="hint">Beispiele (manuell kopieren, je nach Anbieter):<br>
+        • Lotto Bayern ZIP: https://www.lotto-bayern.de/static/gamebroker_2/de/download_files/archiv_keno.zip<br>
+        • CSV/TXT geht auch. Wenn CORS blockt: lokal hosten oder per eigener Domain proxyn.</div>
       </div>
       <div>
         <label>Archiv-Status</label>
         <div id="archStatus" class="status">Kein Archiv geladen.</div>
         <div class="row" style="margin-top:6px">
           <button id="clearArch" class="danger">Archiv löschen</button>
+          <label style="display:flex;align-items:center;gap:6px">
+            <input type="checkbox" id="autoloadOnStart"> Beim Start automatisch laden
+          </label>
         </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div>
+        <label>Datei wählen (CSV/TXT/ZIP – optional)</label>
+        <input type="file" id="file" accept=".csv,.txt,.zip,text/plain,text/csv,application/zip">
       </div>
     </div>
   </div>
@@ -71,11 +84,11 @@
         </select>
       </div>
       <div>
-        <label>Varianten (z. B. 30)</label>
+        <label>Varianten</label>
         <input type="number" id="variants" min="1" max="500" value="30">
       </div>
       <div>
-        <label>Max. Überschneidung zwischen Varianten</label>
+        <label>Max. Überschneidung</label>
         <input type="number" id="maxOverlap" min="0" max="10" value="5">
       </div>
       <div>
@@ -93,7 +106,6 @@
           <option value="50">Letzte 50</option>
           <option value="all">Gesamtes Archiv</option>
         </select>
-        <div class="hint">Wenn an: „heiße“ Zahlen werden leicht bevorzugt, „kalte“ leicht bestraft.</div>
       </div>
       <div>
         <label>Bereich</label>
@@ -101,7 +113,7 @@
           <div><input type="number" id="from" value="1" min="1" max="200"></div>
           <div><input type="number" id="to" value="70" min="1" max="200"></div>
         </div>
-        <div class="hint">Standard: 1–70</div>
+        <div class="hint">Standard 1–70</div>
       </div>
     </div>
   </div>
@@ -111,8 +123,8 @@
     <h2>Generieren</h2>
     <div class="row">
       <button id="go" class="primary">Varianten erzeugen</button>
-      <button id="dlCsv" class="secondary">Als CSV speichern</button>
-      <button id="copy" class="ghost">📋 In Zwischenablage</button>
+      <button id="dlCsv" class="secondary">Als CSV</button>
+      <button id="copy" class="ghost">📋 Kopieren</button>
     </div>
     <div id="genInfo" class="status">Bereit.</div>
   </div>
@@ -130,7 +142,6 @@
   </div>
 </div>
 
-<!-- JSZip (für ZIP-Archive) -->
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script>
 (function(){
@@ -141,12 +152,12 @@
   const sortNums=(a)=>a.slice().sort((x,y)=>x-y);
   const sum=a=>a.reduce((s,x)=>s+x,0);
 
-  const CACHE="keno_mini_archive_v1";
+  const CACHE="keno_mini_archive_v2";
+  const CFG="keno_mini_settings_v2";
   let gDraws=[], gLen=0;
 
   /* ------------------ Robust RNG ------------------ */
   function xoshiro128ss(seed){
-    // seed: 64-bit via splitmix, accepts string/number
     function splitmix64(x){
       x = BigInt.asUintN(64, BigInt(x));
       let z = (x + 0x9E3779B97F4A7C15n) & 0xFFFFFFFFFFFFFFFFn;
@@ -155,7 +166,6 @@
       return z ^ (z >> 31n);
     }
     function rotl(x,k){ return (x<<k | x>>(32-k))>>>0; }
-    // map seed to 4x32
     const h = Number(splitmix64(seed) & 0xffffffffn)>>>0;
     const h2= Number((splitmix64(seed+1n)>>32n) & 0xffffffffn)>>>0;
     const h3= Number(splitmix64(seed+2n) & 0xffffffffn)>>>0;
@@ -176,12 +186,10 @@
   }
   function makeRngFromSeedInput(seedStr){
     if(!seedStr){
-      // Crypto-Seed
       const u = new Uint32Array(2);
       crypto.getRandomValues(u);
       return xoshiro128ss(BigInt((BigInt(u[0])<<32n) | BigInt(u[1])));
     }
-    // Hash simple: FNV-1a 64
     let h = 0xcbf29ce484222325n;
     for(const ch of String(seedStr)){
       h ^= BigInt(ch.codePointAt(0));
@@ -199,127 +207,188 @@
     return line.trim().split(/\\s+/);
   }
   function parseTable(text){ return text.split(/\\r?\\n/).map(r=>r.trim()).filter(Boolean).map(splitSmart); }
-  function detectDashCol(rows){
-    let maxCols=0; for(const r of rows) maxCols=Math.max(maxCols,r.length);
-    let best=-1,score=-1;
-    for(let c=0;c<maxCols;c++){
-      let sc=0;
-      for(const r of rows){
-        const cell=(r[c]||"").trim();
-        if(!cell) continue;
-        const parts=cell.split("-");
-        if(parts.length>=5 && parts.every(p=>/^\\d+$/.test(p))) sc++;
+
+  function parseFromHeader(rows){
+    const header=rows[0].map(x=>String(x).trim().toLowerCase());
+    const zahlIdx=[];
+    header.forEach((h,i)=>{ if(/^zahl\\s*\\d+$/.test(h)) zahlIdx.push(i); });
+    if(zahlIdx.length>=5){
+      const out=[];
+      for(let r=1;r<rows.length;r++){
+        const nums=zahlIdx.map(i=>parseInt(String(rows[r][i]||"").trim(),10)).filter(Number.isInteger);
+        if(nums.length) out.push(nums);
       }
-      if(sc>score){score=sc;best=c;}
-    }
-    return best;
-  }
-  function tryZahlHeader(rows){
-    if(!rows.length) return null;
-    const header=rows[0], idx=[];
-    for(let i=0;i<header.length;i++) if(/^zahl\\s*\\d+$/i.test(String(header[i]).trim())) idx.push(i);
-    if(idx.length>=5){
-      const lists=[]; for(let r=1;r<rows.length;r++){
-        const nums=idx.map(i=>parseInt(String(rows[r][i]||"").trim(),10)).filter(Number.isInteger);
-        if(nums.length) lists.push(nums);
-      }
-      return {lists, info:"Header erkannt"};
+      return out;
     }
     return null;
   }
-  function fallbackExtract(raw){
+  function parseDashCol(rows){
+    let best=-1,score=-1;
+    for(let c=0;c<Math.max(...rows.map(r=>r.length));c++){
+      let sc=0;
+      for(const r of rows){
+        const cell=(r[c]||"").trim();
+        if(/^\\d+(?:-\\d+)+$/.test(cell)) sc++;
+      }
+      if(sc>score){score=sc;best=c;}
+    }
+    if(best<0) return null;
     const out=[];
-    for(const lnRaw of raw.split(/\\r?\\n/)){
-      const ln=lnRaw.trim(); if(!ln) continue;
-      if(/^\\d+(?:-\\d+)+$/.test(ln)){ out.push(ln.split("-").map(n=>parseInt(n,10))); continue; }
-      const nums=(ln.match(/\\d+/g)||[]).map(x=>parseInt(x,10)).filter(Number.isInteger);
+    for(const r of rows){
+      const cell=(r[best]||"").trim();
+      if(/^\\d+(?:-\\d+)+$/.test(cell)) out.push(cell.split("-").map(x=>+x));
+    }
+    return out.length?out:null;
+  }
+  function parseFree(text){
+    const out=[];
+    for(const ln of text.split(/\\r?\\n/)){
+      const s=ln.trim(); if(!s) continue;
+      if(/^\\d+(?:-\\d+)+$/.test(s)){ out.push(s.split("-").map(x=>+x)); continue; }
+      const nums=(s.match(/\\d+/g)||[]).map(Number);
       if(nums.length>=5) out.push(nums);
     }
-    return out;
+    return out.length?out:null;
   }
-  function loadArchiveFromRawText(raw, label){
-    const rows=parseTable(raw);
-    let lists=[], detected="";
-    const z=tryZahlHeader(rows);
-    if(z){ lists=z.lists; detected=z.info; }
-    else{
-      const dc=detectDashCol(rows);
-      if(dc>=0){
-        for(const r of rows){
-          const cell=String(r[dc]||"").trim(); if(!cell) continue;
-          const parts=cell.split("-");
-          if(parts.length && parts.every(p=>/^\\d+$/.test(p))) lists.push(parts.map(x=>parseInt(x,10)));
-        }
-        detected="Spalte 1-4-…";
-      }else{
-        lists=fallbackExtract(raw);
-        detected="Fallback: freie Zahlzeilen";
-      }
-    }
-    if(!lists.length) throw new Error("Keine gültigen Zahlen erkannt.");
-    // dominante Länge
-    const cnt=new Map();
-    for(const a of lists) cnt.set(a.length,(cnt.get(a.length)||0)+1);
-    let bestL=0,bestC=-1;
-    for(const [k,v] of cnt.entries()){ if(v>bestC){bestC=v;bestL=k;} }
-    const filtered = lists.filter(a=>a.length===bestL).map(a=>sortNums(uniq(a)));
-    if(!filtered.length) throw new Error("Nach Filter leer.");
-    gDraws = filtered;
-    gLen   = bestL;
-    try{ localStorage.setItem(CACHE, JSON.stringify({gDraws,gLen,label,savedAt:Date.now()})); }catch{}
-    text($("#archStatus"), `Archiv geladen: ${gDraws.length} Ziehungen · Länge ${gLen} (${detected})${label? " · Quelle: "+label:""}`);
+  function normalizeLists(lists){
+    const counts=new Map();
+    for(const a of lists) counts.set(a.length,(counts.get(a.length)||0)+1);
+    let L=0,cMax=-1; for(const [k,v] of counts.entries()){ if(v>cMax){cMax=v;L=k;} }
+    const filtered = lists.filter(a=>a.length===L).map(a=>sortNums(uniq(a)));
+    return {filtered,L};
   }
-  async function handleAnyFile(file){
-    if(!file) return;
-    text($("#archStatus"), "Lese Datei …");
-    const name=file.name.toLowerCase();
+
+  async function loadArchiveFromBuffer(buf, label){
     try{
-      if(name.endsWith(".zip")){
-        if(!window.JSZip) throw new Error("JSZip fehlt");
-        const ab=await file.arrayBuffer();
-        const zip=await JSZip.loadAsync(ab);
-        const cands=[];
-        zip.forEach((p,e)=>{
-          const pl=p.toLowerCase();
-          if(pl.endsWith(".csv")||pl.endsWith(".txt")){
-            const score=(/keno/i.test(pl)?2:0)+(/archiv/i.test(pl)?1:0);
-            cands.push({p,e,score,size:e._dataUncompressedSize||0});
-          }
-        });
-        cands.sort((a,b)=> b.score-b.score || b.size-a.size);
-        if(!cands.length) throw new Error("Keine CSV/TXT im ZIP");
-        const raw = await cands[0].e.async("string");
-        loadArchiveFromRawText(raw, "ZIP:"+cands[0].p);
-      }else{
-        const txt = await file.text();
-        loadArchiveFromRawText(txt, file.name||"Upload");
+      // try ZIP
+      const zip = await JSZip.loadAsync(buf);
+      const cand=[];
+      zip.forEach((p,e)=>{
+        const pl=p.toLowerCase();
+        if(pl.endsWith(".csv")||pl.endsWith(".txt")){
+          const score=(/keno/i.test(pl)?2:0)+(/archiv/i.test(pl)?1:0);
+          cand.push({p,e,score,size:e._dataUncompressedSize||0});
+        }
+      });
+      cand.sort((a,b)=> b.score-b.score || b.size-a.size);
+      if(!cand.length) throw new Error("ZIP ohne CSV/TXT");
+      const raw = await cand[0].e.async("string");
+      loadArchiveFromText(raw, label+":"+cand[0].p);
+      return;
+    }catch(_){ /* not a zip or failed -> try text */ }
+    const dec = new TextDecoder("utf-8");
+    const asText = dec.decode(buf);
+    loadArchiveFromText(asText, label);
+  }
+
+  function loadArchiveFromText(raw,label){
+    const rows=parseTable(raw);
+    let lists = parseFromHeader(rows) || parseDashCol(rows) || parseFree(raw);
+    if(!lists) throw new Error("Archiv-Format wurde nicht erkannt.");
+    const {filtered,L}=normalizeLists(lists);
+    if(!filtered.length) throw new Error("Nach Filter leer.");
+    gDraws=filtered; gLen=L;
+    try{ localStorage.setItem(CACHE, JSON.stringify({gDraws,gLen,label,savedAt:Date.now()})); }catch{}
+    text($("#archStatus"), `Archiv geladen: ${gDraws.length} Ziehungen · Länge ${gLen}${label? " · Quelle: "+label:""}`);
+  }
+
+  async function fetchBinary(url){
+    const res = await fetch(url, {mode:"cors"});
+    if(!res.ok) throw new Error("HTTP "+res.status);
+    const buf = await res.arrayBuffer();
+    return new Uint8Array(buf);
+  }
+
+  async function autoLoad(url){
+    if(!url) throw new Error("Keine URL gesetzt.");
+    text($("#archStatus"), "Lade Archiv …");
+    try{
+      // Versuche die URL direkt
+      const buf = await fetchBinary(url);
+      await loadArchiveFromBuffer(buf, "AUTO:"+new URL(url).hostname);
+      return;
+    }catch(e1){
+      // Fallbacks: versuche CSV/TXT statt ZIP
+      try{
+        const u = new URL(url);
+        const base = url.replace(/\\.(zip|ZIP)$/, "");
+        const trials = [
+          base+".csv", base+".txt",
+          url.replace(/archiv_keno\\.zip/i,"archiv_keno.csv"),
+          url.replace(/archiv_keno\\.zip/i,"archiv_keno.txt")
+        ];
+        for(const t of trials){
+          try{
+            const buf = await fetchBinary(t);
+            await loadArchiveFromBuffer(buf, "AUTO:"+new URL(t).hostname);
+            return;
+          }catch{}
+        }
+        throw e1;
+      }catch(e2){
+        throw e2;
       }
-    }catch(e){
-      text($("#archStatus"), "Fehler: "+(e?.message||e));
     }
   }
-  $("#file").addEventListener("change", ()=> handleAnyFile($("#file").files[0]));
+
+  // UI verdrahten
+  $("#file").addEventListener("change", async ()=>{
+    const f=$("#file").files[0]; if(!f) return;
+    text($("#archStatus"), "Lese Datei …");
+    try{
+      if(f.type==="application/zip" || f.name.toLowerCase().endsWith(".zip")){
+        const buf = new Uint8Array(await f.arrayBuffer());
+        await loadArchiveFromBuffer(buf, "ZIP:"+f.name);
+      }else{
+        const raw = await f.text();
+        loadArchiveFromText(raw, f.name);
+      }
+    }catch(e){ text($("#archStatus"), "Fehler: "+(e?.message||e)); }
+  });
+
+  $("#autoLoad").addEventListener("click", async ()=>{
+    const url=$("#autoUrl").value.trim();
+    try{ await autoLoad(url); }catch(e){ text($("#archStatus"), "Auto-Laden fehlgeschlagen: "+(e?.message||e)); }
+  });
+  $("#remember").addEventListener("click", ()=>{
+    const url=$("#autoUrl").value.trim();
+    const onStart=$("#autoloadOnStart").checked;
+    try{ localStorage.setItem(CFG, JSON.stringify({url,onStart})); }catch{}
+    text($("#archStatus"), "Gespeichert.");
+  });
   $("#clearArch").addEventListener("click", ()=>{ localStorage.removeItem(CACHE); gDraws=[]; gLen=0; text($("#archStatus"), "Archiv gelöscht."); });
 
-  // Init from cache
-  (function(){
+  (function init(){
+    // Config laden
+    try{
+      const raw=localStorage.getItem(CFG);
+      if(raw){
+        const o=JSON.parse(raw)||{};
+        if(o.url) $("#autoUrl").value=o.url;
+        if(o.onStart) $("#autoloadOnStart").checked=true;
+      }
+    }catch{}
+    // Archiv aus Cache
     try{
       const raw=localStorage.getItem(CACHE);
       if(raw){
-        const o=JSON.parse(raw); if(o && o.gDraws && o.gDraws.length){ gDraws=o.gDraws; gLen=o.gLen; text($("#archStatus"), `Archiv aus Cache: ${gDraws.length} Ziehungen · Länge ${gLen}`); }
+        const o=JSON.parse(raw); if(o && o.gDraws && o.gDraws.length){ gDraws=o.gDraws; gLen=o.gLen; text($("#archStatus"), `Archiv aus Cache: ${gDraws.length} Ziehungen · Länge ${gLen}${o.label? " · "+o.label:""}`); }
       }
     }catch{}
+    // Autoload bei Start
+    if($("#autoloadOnStart").checked && $("#autoUrl").value.trim()){
+      autoLoad($("#autoUrl").value.trim()).catch(e=> text($("#archStatus"), "Auto-Start fehlgeschlagen: "+(e?.message||e)));
+    }
   })();
 
-  /* ------------------ Statistik-Helfer ------------------ */
+  /* ------------------ Statistik/Generator ------------------ */
   function computeStats(A,B,windowMode){
     const total=gDraws.length;
     let start=0;
     if(windowMode==="10") start=Math.max(0,total-10);
     else if(windowMode==="25") start=Math.max(0,total-25);
     else if(windowMode==="50") start=Math.max(0,total-50);
-    else if(windowMode==="all") start=0;
-    else if(windowMode==="off") start=0; // aber später Gewicht=0
+    else start=0;
     const draws = (windowMode==="off") ? gDraws : gDraws.slice(start);
     const n=B-A+1;
     const freq=Array(n).fill(0);
@@ -331,14 +400,6 @@
     return {freq,windowCount:draws.length};
   }
 
-  /* ------------------ Sinnvolle Verteilung ------------------
-     - Greedy + Strafpunkte:
-       • Segment-Balance (Dekaden 1–10, 11–20, …)
-       • Adjazenz-Strafe (±1) + Viererfolge verboten
-       • Paar-Strafe (Vermeide in derselben Variante extrem häufige Paare)
-       • Globale Abdeckung (Zahlen gleichmäßig über alle Varianten verteilen)
-       • Heiß/Kalt-Weights aus Statistikfenster
-     -------------------------------------------------------- */
   function makeVariants(){
     const k = parseInt($("#kenoType").value,10);
     const want = +$("#variants").value;
@@ -346,13 +407,12 @@
     const A = +$("#from").value, B=+$("#to").value;
     if(!(k>=2 && k<=10)) return text($("#genInfo"), "Ungültiger KENO-Typ.");
     if(B<A) return text($("#genInfo"), "Bereich falsch.");
-    if(!gDraws.length) return text($("#genInfo"), "Bitte zuerst Archiv laden.");
+    if(!gDraws.length) return text($("#genInfo"), "Bitte zuerst Archiv laden (Auto oder Datei).");
 
     const rng = makeRngFromSeedInput($("#seed").value.trim());
-    const {freq,windowCount}=computeStats(A,B,$("#window").value);
+    const {freq}=computeStats(A,B,$("#window").value);
     const N=B-A+1;
     const baseP = Array(N).fill(1);
-    // Heiß/Kalt – nur wenn Fenster != off
     if($("#window").value!=="off"){
       const maxF = Math.max(1, ...freq);
       for(let i=0;i<N;i++){
@@ -361,58 +421,34 @@
       }
     }
 
-    const segSize=10; // Dekaden
-    const segIdx = i => Math.floor((i)/segSize); // i = 0..N-1
+    const segSize=10;
+    const segIdx = i => Math.floor((i)/segSize);
     const SEG_COUNT = Math.ceil(N/segSize);
-    const segMin=0, segMax=Math.max(2, Math.ceil(k/2)); // weiches Limit
-
-    // globale Abdeckung: zählt, wie oft eine Zahl bereits in allen Varianten vorkam
+    const segMax=Math.max(2, Math.ceil(k/2));
     const globalUse = Array(N).fill(0);
 
-    // Hilfsfunktionen
-    const pickWeighted = (weights, forbidSet)=>{
-      let s=0;
-      for(let i=0;i<N;i++) if(!forbidSet.has(i)) s+=Math.max(0,weights[i]);
-      if(s<=0){ // Fallback uniform
-        const avail=[...Array(N).keys()].filter(i=>!forbidSet.has(i));
-        const r = avail[Math.floor(rng()*avail.length)];
-        return r;
-      }
-      let r = rng()*s;
-      for(let i=0;i<N;i++){
-        if(forbidSet.has(i)) continue;
-        r-=Math.max(0,weights[i]);
-        if(r<=0) return i;
-      }
-      return N-1;
-    };
-
     const variants=[];
+    const seenCombos = new Set();
 
     function scoreCandidate(curIdxs, candidate){
-      // candidate ist Index 0..N-1 (real = A+idx)
       const sIdx = segIdx(candidate);
       const segCounts = new Array(SEG_COUNT).fill(0);
       for(const c of curIdxs) segCounts[segIdx(c)]++;
-      const adjPenalty = curIdxs.some(x => Math.abs(x - candidate)===1) ? 0.85 : 1;
-      // 4er-Folge verhindern
       const withCand = sortNums(curIdxs.concat([candidate]));
+      // Adjazenz & 4er-Folgen
+      const adjPenalty = curIdxs.some(x => Math.abs(x - candidate)===1) ? 0.85 : 1;
       let consec=1, bad=false;
       for(let i=1;i<withCand.length;i++){
         if(withCand[i]===withCand[i-1]+1){ consec++; if(consec>=4){ bad=true; break; } }
         else consec=1;
       }
       if(bad) return -1;
-      // Segment-Penalty (weich)
       const segP = (segCounts[sIdx] >= segMax) ? 0.7 : 1;
-      const coverageP = 1.2 / (1 + globalUse[candidate]); // bevorzugt selten genutzte Zahlen global
-      return segP * adjPenalty * coverageP;
+      const coverageP = 1.2 / (1 + globalUse[candidate]);
+      return adjPenalty * segP * coverageP;
     }
 
-    const seenCombos = new Set();
     function tooSimilar(arr){
-      if(variants.length===0) return false;
-      // Max-Overlap prüfen
       for(const v of variants){
         let same=0;
         let i=0,j=0;
@@ -428,65 +464,58 @@
     for(let t=0; t<want; t++){
       const forbid = new Set();
       const chosen=[];
-      const weights = baseP.slice();
-      let safety=0;
-      while(chosen.length<k && safety<5000){
-        safety++;
-        // Score-justierung je Kandidat
+      let iter=0;
+      while(chosen.length<k && iter<4000){
+        iter++;
+        // bewertete Kandidatenmenge
         const scored = [];
         for(let i=0;i<N;i++){
           if(forbid.has(i)) continue;
           const s = scoreCandidate(chosen, i);
           if(s<=0) continue;
-          scored.push([i, weights[i]*s]);
+          scored.push([i, baseP[i]*s]);
         }
         if(!scored.length){
-          // Fallback: lockere Forbids und versuche neu
-          if(chosen.length===0){ break; }
           forbid.clear();
           continue;
         }
-        // Normiere auf Auswahl
         let total=0; for(const [,w] of scored) total+=w;
-        let r=rng()*total;
+        let r=(makeRngFromSeedInput($("#seed").value.trim()))()*1e-9; // mini jitter pro Schleife
+        r += Math.random()*1e-9; // native jitter für Diversität
+        r += (function(){ let s=0; for(const [,w] of scored) s+=w; return (makeRngFromSeedInput(Date.now()+\"\"))()*s; })(); // Extra Z
+        r = r % total;
         let pick=scored[0][0];
         for(const [idx,w] of scored){ r-=w; if(r<=0){ pick=idx; break; } }
         chosen.push(pick);
         forbid.add(pick);
-        // leichte Sperre benachbarter Zahlen, um Klumpen zu vermeiden
         if(pick-1>=0) forbid.add(pick-1);
         if(pick+1<N) forbid.add(pick+1);
       }
-      if(chosen.length!==k){ t--; continue; } // nochmal versuchen
+      if(chosen.length!==k){ t--; continue; }
       const combo = sortNums(chosen.map(i=>A+i));
       if(tooSimilar(combo)){ t--; continue; }
       const key = combo.join(",");
       if(seenCombos.has(key)){ t--; continue; }
       seenCombos.add(key);
-      // globale Abdeckung aktualisieren
       for(const i of chosen) globalUse[i]++;
       variants.push(combo);
     }
 
-    // Ausgabe
-    const res=$("#results");
-    res.innerHTML="";
+    const res=$("#results"); res.innerHTML="";
     variants.forEach((v,idx)=>{
       const div=document.createElement("div"); div.className="item";
       div.innerHTML = `<span class="badge">#${idx+1}</span> <span class="mono">${v.join(" ")}</span>`;
       res.appendChild(div);
     });
 
-    // Analyse erstellen
+    // Analyse
     const usage = new Map();
     for(const v of variants) for(const n of v) usage.set(n,(usage.get(n)||0)+1);
     const usageArr = Array.from(usage.entries()).sort((a,b)=> b[1]-a[1]);
     const avg = (sum(variants.map(v=>v.length))/variants.length)||0;
-    // Overlap-Histogramm
     const hist = new Map();
     for(let i=0;i<variants.length;i++){
       for(let j=i+1;j<variants.length;j++){
-        // Schnittgröße
         let a=variants[i], b=variants[j], p=0, q=0, same=0;
         while(p<a.length && q<b.length){
           if(a[p]===b[q]){ same++; p++; q++; }
@@ -505,13 +534,10 @@ Top genutzte Zahlen: ${topUsed || "–"}
 Overlap-Histogramm (Schnittgrößen): ${histTxt || "–"}`;
     text($("#genInfo"), "Fertig.");
     text($("#report"), info);
-
-    // CSV/Copy Hilfen
     window.__kenoVariants = variants;
   }
 
   $("#go").addEventListener("click", makeVariants);
-
   $("#dlCsv").addEventListener("click", ()=>{
     const v = (window.__kenoVariants||[]);
     if(!v.length) return alert("Noch keine Varianten.");
