@@ -1970,4 +1970,35 @@ TEST_LOG:
   /* ===================== Sicherheitshinweis ===================== */
   // Keine Garantieversprechen; nur Statistik und Simulation werden gezeigt.
   // Es werden keine Daten an Server übertragen. Alles läuft lokal im Browser.
-  
+    /* ===================== Sonstige Event-Bindings & Helpers ===================== */
+
+  // Auto-Download Button
+  const autoBtn = document.getElementById("autoLoad");
+  if(autoBtn){
+    autoBtn.addEventListener("click", ()=>{
+      autoBtn.disabled = true;
+      autoLoadOfficialArchive().finally(()=> autoBtn.disabled = false);
+    });
+  }
+
+  // „Beim Start laden“-Option persistent speichern
+  const autoloadChk = document.getElementById("autoloadOnStart");
+  if(autoloadChk){
+    autoloadChk.addEventListener("change", ()=>{
+      try{ localStorage.setItem("keno_autoload_onstart", autoloadChk.checked ? "1" : "0"); }catch{}
+    });
+  }
+
+  // Bereichs-UI initial synchronisieren
+  updateRangeSummary();
+
+  // Kleine UX-Hilfe: nach Generieren/Analyse automatisch zum Ergebnis-Panel scrollen
+  const goBtn = document.getElementById("go");
+  if(goBtn){ goBtn.addEventListener("click", ()=> setTimeout(()=> scrollToNode(document.getElementById("p-results")), 50)); }
+  const tipBtn = document.getElementById("checkTip");
+  if(tipBtn){ tipBtn.addEventListener("click", ()=> setTimeout(()=> scrollToNode(document.getElementById("p-analyse")), 50)); }
+
+  // Ende der gekapselten Skripte – alles bleibt lokal, keine externen Calls außer Archiv-Download.
+})();
+</script>
+</html>
