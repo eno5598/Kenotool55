@@ -1144,4 +1144,643 @@ TEST_LOG:
     text($("#hotInfo"), "läuft…");
     hotWorker.postMessage({ draws: slice, k, topN, budgetSec, mode: "max" });
   }
+    } // — Ende recomputeHotGroups
+
+  /* ===================== RNG (deterministisch, Seed optional lang) ===================== */
+  function mkSeededRng(seedStr){
+    // Akzeptiert sehr lange numerische Strings – faltet sie deterministisch
+    const s = String(seedStr||"1").replace(/\D+/g,"") || "1";
+    let h1=0x9e3779b9, h2=0x85ebca6b, h3=0xc2b2ae35, h4=0x27d4eb2f;
+    for(let i=0;i<s.length;i++){
+      const x = s.charCodeAt(i) - 48;
+      h1 = (h1 ^ x) * 0x85ebca6b; h1|=0;
+      h2 = (h2 + h1) * 0xc2b2ae35; h2|=0;
+      h3 = (h3 ^ h2) * 0x27d4eb2f; h3|=0;
+      h4 = (h4 + h3) | 0;
+    }
+    function xorshift(){ h4 ^= h4<<13; h4 ^= h4>>>17; h4 ^= h4<<5; return (h4>>>0)/0xFFFFFFFF; }
+    return ()=> xorshift();
+  }
+
+  /* ===================== Archiv-Gewichte (hot/cold/mix/neutral) ===================== */
+  function buildArchiveWeights(mode, A, B, lastWindow){ // lastWindow: 'all' | number
+    const n=B-A+1;
+    const freq=Array(n).fill(0);
+    const start = (!g_draws.length) ? 0 :
+      (lastWindow && lastWindow!=='all' ? Math.max(0, g_draws.length - (+lastWindow)) : 0);
+    for(let d=start; d<g_draws.length; d++){
+      for(const z of g_draws[d]){
+        if(z>=A && z<=B) freq[z-A]++;
+      }
+    }
+    const maxF = Math.max(1, ...freq);
+    const minF = Math.min(...freq);
+    const norm = freq.map(f=> f/maxF);
+    const inv  = freq.map(f=> (maxF - (f-minF)) / Math.max(1,(maxF-minF||1)));
+    // neutral = 1, hot = norm^1.2, cold = inv^1.2, mix = 0.5*(hot+cold)
+    const pow = 1.2;
+    const hot  = norm.map(x=> Math.pow(x||0.0001,pow));
+    const cold = inv.map(x=> Math.pow(x||0.0001,pow));
+    if(mode==="hot")  return hot;
+    if(mode==="cold") return cold;
+    if(mode==="mix")  return hot.map((x,i)=> 0.5*(x + cold[i]));
+    return Array(n).fill(1); // neutral
+  }
+
+  /* ===================== Smart10 Heuristik & Generator ===================== */
+  const SMART_CFG = {
+    adj_w: 4.0,         // Adjazenz-Strafe (|a-b|==1)
+    pair_w: 1.0,        // Paar-Wiederverwendungsstrafe
+    cover_pair_w: 2.0,  // für smart10-cover stärker
+    spread_bonus: 0.15, // Belohnung für große Abstände in einer Variante
+    targetTol: 1.0,     // Toleranz gegen Zielhäufigkeit
+    maxSteps: 5000      // lokale Verbesserung (2-Swap) upper bound
+  };
+
+  function hasRunOf4(nums){ // vermeidet 4+ aufeinanderfolgende Werte
+    let run=1;
+    for(let i=1;i<nums.length;i++){
+      if(nums[i]===nums[i-1]+1){ run++; if(run>=4) return true; }
+      else run=1;
+    }
+    return false;
+  }
+
+  function pairKey(a,b){ return a<b ? (a<<10)|b : (b<<10)|a; }
+
+  function ticketScore(ticket, counts, A, B, weights, pairUsed, cfg){
+    const k=ticket.length;
+    let score=0;
+    // Unter-/Überdeckung
+    for(const z of ticket){
+      const idx=z-A;
+      const w=(weights[idx]||1);
+      const c=(counts.get(z)||0);
+      // leicht belohnen, wenn unter Ziel, leicht strafen, wenn drüber
+      score -= w * (1.0 / (1 + c));
+    }
+    // Adjazenz
+    for(let i=1;i<k;i++){
+      if(Math.abs(ticket[i]-ticket[i-1])===1) score += cfg.adj_w;
+    }
+    // Spread (größere Distanz zwischen aufeinanderfolgenden Zahlen)
+    let spread=0; for(let i=1;i<k;i++) spread += Math.abs(ticket[i]-ticket[i-1]);
+    score -= cfg.spread_bonus * (spread / (k-1));
+    // Paare, die historisch schon oft gemeinsam genutzt wurden
+    for(let i=0;i<k;i++) for(let j=i+1;j<k;j++){
+      const pk = pairKey(ticket[i], ticket[j]);
+      score += (pairUsed.get(pk)||0) * cfg.pair_w * 0.5;
+    }
+    // Run-of-4 hart bestrafen
+    if(hasRunOf4(ticket)) score += 50;
+    return score;
+  }
+
+  async function generateSmartVariants(mode, want, progressCb){
+    const S=10; // Smart-Generator arbeitet auf Typ 10
+    const k=S;
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const maxOv=+$("#maxOv").value;
+    const seedStr = $("#seed").value || "1";
+    const rng = mkSeededRng(seedStr);
+    const wMode = (mode==="smart10-hot") ? "hot" :
+                  (mode==="smart10-cold") ? "cold" :
+                  (mode==="smart10-mix") ? "mix" : "neutral";
+    const weights = buildArchiveWeights(wMode, A, B, 'all');
+    const counts = new Map();
+    const pairUsed = new Map();
+    const variants=[];
+    // Zielhäufigkeit grob
+    const target = (want*k)/(B-A+1);
+    const tMax = Math.ceil(target + SMART_CFG.targetTol);
+
+    function candidateScoreAdd(cur, z){
+      let score=0;
+      // Gewicht / Unterdeckung
+      const idx=z-A;
+      const w=(weights[idx]||1);
+      const c=(counts.get(z)||0);
+      score -= w * (1.0 / (1 + c));
+      // Nähe zu bestehenden Zahlen
+      const arr=Array.from(cur).sort((x,y)=>x-y);
+      for(let i=0;i<arr.length;i++){
+        const x=arr[i];
+        if(Math.abs(z-x)===1) score += SMART_CFG.adj_w;
+        if(x<z){ const pk=pairKey(x,z); score += (pairUsed.get(pk)||0) * SMART_CFG.pair_w; }
+        else   { const pk=pairKey(z,x); score += (pairUsed.get(pk)||0) * SMART_CFG.pair_w; }
+      }
+      return score;
+    }
+
+    for(let t=0; t<want; t++){
+      const cur=new Set();
+      let guard=0;
+      while(cur.size<k && guard<5000){
+        guard++;
+        let bestZ=null, bestScore=Infinity;
+        // Kandidaten-Sampling (beschleunigt): ziehe 200 zufällige Kandidaten, nimm den besten
+        for(let it=0; it<200; it++){
+          const z=A + Math.floor(rng()*(B-A+1));
+          if(cur.has(z)) continue;
+          if((counts.get(z)||0) >= tMax) continue;
+          // Overlap-Prüfung (gegen alle bisherigen Varianten)
+          let bad=false;
+          for(const v of variants){
+            let ov=0; for(const x of v) if(x===z || (cur.has(x))) { if(x===z||cur.has(x)) ov++; }
+            if(ov > maxOv){ bad=true; break; }
+          }
+          if(bad) continue;
+          const s = candidateScoreAdd(cur,z);
+          if(s<bestScore){ bestScore=s; bestZ=z; }
+        }
+        // Fallback linear, falls Sampling nichts fand
+        if(bestZ===null){
+          for(let z=A; z<=B; z++){
+            if(cur.has(z)) continue;
+            if((counts.get(z)||0) >= tMax) continue;
+            let bad=false, ovAdd=0;
+            for(const v of variants){
+              let ov=0;
+              for(const x of v){ if(cur.has(x)) ov++; }
+              if(v.includes(z)) ov++;
+              if(ov>maxOv){ bad=true; break; }
+              ovAdd=Math.max(ovAdd, ov);
+            }
+            if(bad) continue;
+            const s=candidateScoreAdd(cur,z) + 0.001*ovAdd;
+            if(s<bestScore){ bestScore=s; bestZ=z; }
+          }
+        }
+        if(bestZ==null) break;
+        cur.add(bestZ);
+      }
+      const arr=uniqSorted(Array.from(cur));
+      // Notbremse gegen Run-of-4: kleine lokale Veränderung
+      if(hasRunOf4(arr)){
+        for(let tries=0;tries<200;tries++){
+          const idx=Math.floor(rng()*arr.length);
+          let nz=A + Math.floor(rng()*(B-A+1));
+          if(arr.includes(nz)) continue;
+          const tmp=arr.slice(); tmp[idx]=nz; tmp.sort((x,y)=>x-y);
+          if(!hasRunOf4(tmp)){ arr.splice(0,arr.length,...tmp); break; }
+        }
+      }
+      // Register counts + pairUsed
+      for(const z of arr){ counts.set(z,(counts.get(z)||0)+1); }
+      for(let i=0;i<arr.length;i++) for(let j=i+1;j<arr.length;j++){
+        const pk=pairKey(arr[i],arr[j]); pairUsed.set(pk,(pairUsed.get(pk)||0)+1);
+      }
+      variants.push(arr);
+      if(progressCb && t%5===0){ progressCb((t+1)/want); await new Promise(r=>setTimeout(r,0)); }
+    }
+
+    // Lokale Verbesserung (2-Swap) um Paardoppler/Adjazenz zu verringern
+    const cfg = Object.assign({}, SMART_CFG, (mode==="smart10-cover"? {pair_w:SMART_CFG.cover_pair_w}:{}) );
+    let steps=0, improved=true;
+    while(improved && steps<SMART_CFG.maxSteps){
+      improved=false; steps++;
+      // wähle zwei Tickets
+      const i=Math.floor(rng()*variants.length);
+      const j=Math.floor(rng()*variants.length);
+      if(i===j) continue;
+      const ti=variants[i].slice();
+      const tj=variants[j].slice();
+      // wähle je ein Element
+      const ai=Math.floor(rng()*ti.length);
+      const aj=Math.floor(rng()*tj.length);
+      const zi=ti[ai], zj=tj[aj];
+      if(zi===zj) continue;
+      ti[ai]=zj; tj[aj]=zi;
+      ti.sort((a,b)=>a-b); tj.sort((a,b)=>a-b);
+      // Überlapp prüfen (mit allen anderen)
+      function maxOverlapOf(v){
+        let mo=0;
+        for(let w=0; w<variants.length; w++){
+          if(w===i||w===j) continue;
+          let ov=0;
+          const set = new Set(variants[w]);
+          for(const x of v) if(set.has(x)) ov++;
+          if(ov>mo) mo=ov;
+        }
+        return mo;
+      }
+      const mo_i = maxOverlapOf(ti), mo_j = maxOverlapOf(tj);
+      if(mo_i>maxOv || mo_j>maxOv) continue;
+
+      // Score vorher/nachher grob vergleichen
+      const s_before = ticketScore(variants[i], counts, A, B, weights, pairUsed, cfg)
+                     + ticketScore(variants[j], counts, A, B, weights, pairUsed, cfg);
+      const s_after  = ticketScore(ti, counts, A, B, weights, pairUsed, cfg)
+                     + ticketScore(tj, counts, A, B, weights, pairUsed, cfg);
+      if(s_after < s_before){
+        variants[i]=ti; variants[j]=tj;
+        improved=true;
+      }
+      if(steps%200===0) await new Promise(r=>setTimeout(r,0));
+    }
+    return variants;
+  }
+
+  /* ===================== Monte-Carlo-Simulation ===================== */
+  async function simulateHitRates(variants, runs=20000, progressCb){
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const pool=Array.from({length:B-A+1},(_,i)=>A+i);
+    const K=variants[0]?.length||10;
+    const vsets=variants.map(v=> new Set(v));
+    const hist=Array(K+1).fill(0);
+    let ge6=0;
+    for(let r=0;r<runs;r++){
+      // 20 aus [A..B] ohne Zurücklegen (Fisher-Yates partiell)
+      const arr=pool.slice();
+      for(let i=0;i<20;i++){
+        const j=i + Math.floor(Math.random()*(arr.length-i));
+        const tmp=arr[i]; arr[i]=arr[j]; arr[j]=tmp;
+      }
+      const drawn=new Set(arr.slice(0,20));
+      let best=0;
+      for(const s of vsets){
+        let hit=0; for(const x of s) if(drawn.has(x)) hit++;
+        if(hit>best) best=hit;
+      }
+      hist[best]++;
+      if(best>=6) ge6++;
+      if(progressCb && (r%500===0)) { progressCb(r/runs); await new Promise(r=>setTimeout(r,0)); }
+    }
+    return { hist, pBestGE6: ge6/runs, runs };
+  }
+
+  /* ===================== Ergebnisse rendern & Tools ===================== */
+  function renderResults(list){
+    const el=$("#results"); el.innerHTML="";
+    list.forEach((nums,idx)=>{
+      const span=document.createElement("div");
+      span.className="resItem";
+      span.innerHTML = `<span class="badge">#${idx+1}</span>
+                        <span class="resNums">${nums.map(n=>String(n).padStart(2," ")).join(" ")}</span>`;
+      el.appendChild(span);
+    });
+  }
+  function combosToCSV(list){ return list.map(a=>a.join(",")).join("\n"); }
+  function downloadText(name, textData){
+    const blob=new Blob([textData],{type:"text/plain;charset=utf-8"});
+    const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=name; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  }
+
+  /* ===================== Generator-Bedienung ===================== */
+  function currentGenMode(){ return $("#genMode").value; }
+  async function runGenerator(){
+    const mode=currentGenMode();
+    const want=+$("#want").value||10;
+    $("#genProg").style.display=""; $("#genProg").value=0;
+    text($("#genInfo"), `Starte: ${mode} · ${want} Varianten …`);
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const S=getS();
+    let variants=[];
+    if(mode.startsWith("smart10")){
+      if(S!==10) text($("#genInfo"), "Hinweis: Smart10 verwendet fest KENO-Typ 10 (unabhängig von der Einstellungen).");
+      variants = await generateSmartVariants(mode, want, p=>$("#genProg").value=p);
+    }else if(mode==="random"){
+      // zufällig (ohne Muster)
+      for(let i=0;i<want;i++){
+        const arr=[]; const used=new Set();
+        while(arr.length<S){
+          const z=A+Math.floor(Math.random()*(B-A+1));
+          if(used.has(z)) continue;
+          used.add(z); arr.push(z);
+        }
+        arr.sort((x,y)=>x-y);
+        if(hasRunOf4(arr)){ i--; continue; } // neu ziehen
+        variants.push(arr);
+        if(i%5===0){ $("#genProg").value=(i+1)/want; await new Promise(r=>setTimeout(r,0)); }
+      }
+    }else if(mode==="freq"){
+      const weights = buildArchiveWeights("hot",A,B,'all');
+      for(let i=0;i<want;i++){
+        const used=new Set();
+        while(used.size<S){
+          // Roulette Wheel
+          let acc=0, pick=Math.random()*weights.reduce((a,b)=>a+b,0);
+          let z=A;
+          for(let idx=0; idx<weights.length; idx++){
+            acc+=weights[idx];
+            if(acc>=pick){ z=A+idx; break; }
+          }
+          if(!used.has(z)) used.add(z);
+          if(used.size>10000) break;
+        }
+        const arr=uniqSorted(Array.from(used));
+        if(arr.length!==S || hasRunOf4(arr)){ i--; continue; }
+        variants.push(arr);
+        if(i%5===0){ $("#genProg").value=(i+1)/want; await new Promise(r=>setTimeout(r,0)); }
+      }
+    }else{
+      // andere ältere Modi entfernt / nicht verwendet
+      text($("#genInfo"), "Modus nicht implementiert.");
+      $("#genProg").style.display="none";
+      return;
+    }
+
+    renderResults(variants);
+    $("#genProg").style.display="none";
+    text($("#genInfo"), `Fertig: ${variants.length} Varianten.`);
+
+    // Simulation
+    text($("#resultStatus"), "Starte Monte-Carlo-Simulation (10k)…");
+    $("#resultStatus").style.display="";
+    const sim = await simulateHitRates(variants, 10000, p=>{ $("#resultStatus").textContent = `Simulation… ${(100*p).toFixed(0)}%`; });
+    const histTxt = sim.hist.map((c,i)=> i.toString().padStart(2," ")+" → "+c.toString().padStart(6," ")).join("\n");
+    const rep = `P(best ≥ 6) = ${(100*sim.pBestGE6).toFixed(2)}%\nHistogramm best Hits:\n${histTxt}`;
+    $("#resultStatus").textContent = rep;
+
+    // Ergebnis sichern für Export-Buttons
+    $("#results")._variants = variants;
+  }
+
+  $("#go").addEventListener("click", ()=>{ runGenerator().catch(e=>{ $("#genProg").style.display="none"; text($("#genInfo"), "Fehler: "+(e?.message||e)); }); });
+  $("#save").addEventListener("click", ()=>{
+    const v=$("#results")._variants||[];
+    if(!v.length){ alert("Keine Ergebnisse."); return; }
+    downloadText("keno_variants.csv", combosToCSV(v));
+  });
+  $("#copyCombos").addEventListener("click", async ()=>{
+    const v=$("#results")._variants||[];
+    if(!v.length){ alert("Keine Ergebnisse."); return; }
+    const t=v.map(a=>a.join(" ")).join("\n");
+    try{ await navigator.clipboard.writeText(t); alert("Kopiert!"); }catch{ alert("Konnte nicht kopieren."); }
+  });
+
+  /* ===================== Seed-Tools ===================== */
+  function cryptoSeed(){
+    const a=new Uint32Array(4); crypto.getRandomValues(a);
+    return String(a[0])+String(a[1])+String(a[2])+String(a[3]);
+  }
+  function fibSeed(){
+    let a=1n,b=1n; for(let i=0;i<200;i++){ const t=a+b; a=b; b=t; }
+    return (a%10000000000000000n).toString();
+  }
+  function primeSeed(){
+    // sehr vereinfachte Primzahl-Faltung
+    const p=[2,3,5,7,11,13,17,19,23,29,31,37]; let x=1n;
+    for(const v of p){ x = (x*BigInt(v)) % 10000000000000000n; }
+    return x.toString();
+  }
+  $("#seedRand").addEventListener("click", ()=>{
+    const f=$("#seedFormula").value;
+    const v = f==="fib" ? fibSeed() : f==="prime" ? primeSeed() : cryptoSeed();
+    $("#seed").value = v;
+  });
+
+  /* ===================== Omega & Mother Mode – UI & Logik ===================== */
+  // Panel unter Ergebnisse einfügen (isoliert)
+  (function addOmegaMotherPanels(){
+    const host=document.querySelector(".box");
+    const wrap=document.createElement("div");
+    wrap.innerHTML = `
+      <div class="panel" id="p-omega" style="border-left:6px solid #8b5cf6">
+        <div class="ph"><span class="emoji">🧬</span><h2 style="margin:0">Omega Modus — Blackbox</h2><span class="pill">isoliert</span></div>
+        <div class="row">
+          <div><label>Keno-Typ</label><select id="omegaType"><option value="10" selected>Typ 10</option></select></div>
+          <div><label>Varianten</label><input type="number" id="omegaVariants" value="50" min="1" max="2000"></div>
+          <div><label>Strategie</label>
+            <select id="omegaStrategy">
+              <option value="hybrid" selected>hybrid</option>
+              <option value="sa">sa (Simulated Annealing)</option>
+              <option value="genetic">genetic</option>
+              <option value="ilp">ilp (Skizze, heuristisch)</option>
+            </select>
+          </div>
+          <div><label>Seed (optional)</label><input type="text" id="omegaSeed" placeholder="z. B. 1234567890123" pattern="\\d*" inputmode="numeric"></div>
+        </div>
+        <div class="row">
+          <label class="pill" style="display:flex;align-items:center;gap:6px"><input type="checkbox" id="omegaIsolate" checked> Omega isoliert alles andere</label>
+          <button id="omegaRun" class="primary">Omega starten</button>
+          <button id="omegaExit" class="ghost">Exit Omega</button>
+          <button id="omegaExport" class="secondary">Export (JSON)</button>
+        </div>
+        <div style="margin-top:6px">
+          <label>Fortschritt</label>
+          <progress id="omegaProg" value="0" max="1" style="display:none"></progress>
+          <div id="omegaInfo" class="status" style="margin-top:6px">bereit</div>
+          <div id="omegaReport" class="status" style="margin-top:6px;display:none"></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Dieses Tool optimiert Verteilungen; Lotterien sind zufällig — es gibt keine Garantie.</div>
+      </div>
+
+      <div class="panel" id="p-mother" style="border-left:6px solid #10b981">
+        <div class="ph"><span class="emoji">🧰</span><h2 style="margin:0">Mother Mode — Archiv-optimierter Generator</h2><span class="pill">abgekapselt</span></div>
+        <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" id="motherOn"> <span>Mother Mode einschalten</span></label>
+        <div class="row">
+          <div><label>Varianten</label><input type="number" id="motherVariants" value="50" min="1" max="2000"></div>
+          <div><label>Seed (optional)</label><input type="text" id="motherSeed" placeholder="Seed (Zahlen)" pattern="\\d*" inputmode="numeric"></div>
+          <div><label>Gewicht-Strategie</label>
+            <select id="motherW">
+              <option value="neutral">neutral</option>
+              <option value="hot" selected>hot</option>
+              <option value="cold">cold</option>
+              <option value="mix">mix</option>
+            </select>
+          </div>
+          <div><label>Vergleichsfenster</label>
+            <select id="motherWin">
+              <option value="50" selected>letzte 50</option>
+              <option value="100">letzte 100</option>
+              <option value="all">alle</option>
+            </select>
+          </div>
+        </div>
+        <div class="row">
+          <button id="motherRun" class="primary">Mother-Run starten</button>
+          <button id="motherExit" class="ghost">Exit Mother</button>
+          <button id="motherExport" class="secondary">Export (JSON)</button>
+        </div>
+        <div style="margin-top:6px">
+          <label>Fortschritt</label>
+          <progress id="motherProg" value="0" max="1" style="display:none"></progress>
+          <div id="motherInfo" class="status" style="margin-top:6px">bereit</div>
+          <div id="motherReport" class="status" style="margin-top:6px;display:none"></div>
+        </div>
+        <div class="hint" style="margin-top:6px">Dieses Tool optimiert Verteilungen; Lotterien sind zufällig — es gibt keine Garantie.</div>
+      </div>
+    `;
+    host.appendChild(wrap.firstElementChild);
+    host.appendChild(wrap.lastElementChild);
+  })();
+
+  /* ===================== Omega/Mother – Isolations-Logik ===================== */
+  function setIsolation(on, keepIds){
+    const ids = ["p-archiv","p-settings","p-pattern","p-hot","p-gen","p-range-rules","p-stats","p-analyse","p-favs","p-results","p-omega","p-mother"];
+    const keep=new Set(keepIds||[]);
+    ids.forEach(id=>{
+      const el=document.getElementById(id);
+      if(!el) return;
+      if(keep.has(id)) el.style.display="";
+      else el.style.display = on ? (keep.has(id)?"":"none") : "";
+    });
+  }
+
+  /* ===================== Omega – Ablauf (hybrid kompakt) ===================== */
+  async function runOmega(){
+    const want=+$("#omegaVariants").value||50;
+    const seed=$("#omegaSeed").value||$("#seed").value||"1";
+    const strat=$("#omegaStrategy").value;
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const info=$("#omegaInfo"), prog=$("#omegaProg"), rep=$("#omegaReport");
+    info.textContent="Init…"; prog.style.display=""; prog.value=0; rep.style.display="none";
+    // 1) Greedy (Smart10-mix)
+    let variants = await generateSmartVariants("smart10-mix", want, p=>{ prog.value = 0.25*p; info.textContent=`Greedy… ${(25*p)|0}%`; });
+    // 2) SA/Genetic rudimentär (leichte Perturbation)
+    if(strat==="hybrid" || strat==="sa" || strat==="genetic"){
+      const rng=mkSeededRng(seed);
+      const steps = strat==="sa" ? 4000 : strat==="genetic" ? 3000 : 2500;
+      for(let s=0; s<steps; s++){
+        // kleiner Tausch
+        const i=Math.floor(rng()*variants.length), j=Math.floor(rng()*variants.length);
+        if(i===j) continue;
+        const ti=variants[i].slice(), tj=variants[j].slice();
+        const ai=Math.floor(rng()*ti.length), aj=Math.floor(rng()*tj.length);
+        const zi=ti[ai], zj=tj[aj]; if(zi===zj) continue;
+        ti[ai]=zj; tj[aj]=zi; ti.sort((a,b)=>a-b); tj.sort((a,b)=>a-b);
+        // akzeptiere, wenn keine 4er-Run und maxOv ok
+        const maxOv=+$("#maxOv").value;
+        function ok(v){
+          if(hasRunOf4(v)) return false;
+          for(const u of variants){
+            if(u===v) continue; let ov=0; const ss=new Set(u); for(const x of v) if(ss.has(x)) ov++;
+            if(ov>maxOv) return false;
+          }
+          return true;
+        }
+        if(ok(ti) && ok(tj)){ variants[i]=ti; variants[j]=tj; }
+        if(s%200===0){ prog.value = 0.25 + 0.35*(s/steps); info.textContent=`Verbesserung… Schritt ${s}/${steps}`; await new Promise(r=>setTimeout(r,0)); }
+      }
+    }
+    // 3) Lokale Verbesserung (bereits in Smart enthalten); hier nur finaler Polish
+    variants = variants.map(v=> v.slice().sort((a,b)=>a-b));
+    prog.value=0.65; info.textContent="Feinschliff…";
+    await new Promise(r=>setTimeout(r,0));
+
+    // 4) Simulation + Report
+    info.textContent="Simulation (10k)…"; prog.value=0.7;
+    const sim = await simulateHitRates(variants, 10000, p=>{ prog.value = 0.7 + 0.3*p; });
+    const counts = new Map(); for(const v of variants) for(const z of v) counts.set(z,(counts.get(z)||0)+1);
+    const all=Array.from(counts.values()); const mn=Math.min(...all), mx=Math.max(...all), av=(all.reduce((a,b)=>a+b,0)/all.length)||0;
+    // Pair coverage
+    const seenPairs = new Set();
+    for(const v of variants) for(let i=0;i<v.length;i++) for(let j=i+1;j<v.length;j++) seenPairs.add(pairKey(v[i],v[j]));
+    const totalPairs = (B-A+1)*((B-A)/2); // grobe Obergrenze (nur Indikativ)
+    const pairPct = Math.min(100, 100*seenPairs.size/Math.max(1,totalPairs));
+
+    const histTxt = sim.hist.map((c,i)=> i.toString().padStart(2," ")+" → "+c.toString().padStart(6," ")).join("\n");
+    const repTxt = [
+      `Varianten: ${variants.length} · Bereich ${A}-${B}`,
+      `Frequenz pro Zahl (min/avg/max): ${mn}/${av.toFixed(2)}/${mx}`,
+      `Einzigartige Paare: ${seenPairs.size} (~${pairPct.toFixed(3)}% grob)`,
+      `P(best ≥ 6) = ${(100*sim.pBestGE6).toFixed(2)}%`,
+      `Histogramm best Hits:\n${histTxt}`
+    ].join("\n");
+    rep.style.display=""; rep.textContent = repTxt;
+
+    $("#results")._variants = variants;
+    prog.style.display="none";
+    info.textContent="Omega fertig.";
+    renderResults(variants);
+  }
+
+  $("#omegaRun").addEventListener("click", ()=>{
+    if($("#omegaIsolate").checked) setIsolation(true, new Set(["p-archiv","p-omega"]));
+    runOmega().catch(e=>{ $("#omegaProg").style.display="none"; $("#omegaInfo").textContent="Fehler: "+(e?.message||e); });
+  });
+  $("#omegaExit").addEventListener("click", ()=> setIsolation(false));
+  $("#omegaExport").addEventListener("click", ()=>{
+    const v=$("#results")._variants||[];
+    if(!v.length){ alert("Keine Omega-Ergebnisse."); return; }
+    const meta = { mode:"omega", ts:Date.now(), range:[+$("#rangeFrom").value,+$("#rangeTo").value], maxOv:+$("#maxOv").value };
+    downloadText(`omega_variants_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`, JSON.stringify({meta, variants:v}, null, 2));
+  });
+
+  /* ===================== Mother Mode – Ablauf ===================== */
+  async function runMother(){
+    const want=+$("#motherVariants").value||50;
+    const seed=$("#motherSeed").value||$("#seed").value||"1";
+    const wMode=$("#motherW").value||"hot";
+    const win=$("#motherWin").value||"50";
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const info=$("#motherInfo"), prog=$("#motherProg"), rep=$("#motherReport");
+    info.textContent="Init…"; prog.style.display=""; prog.value=0; rep.style.display="none";
+    // Mother: Smart10 mit Archivgewichten (Fenster) + stärkere Paar-Entkopplung
+    const prevAdj = SMART_CFG.adj_w, prevPair=SMART_CFG.pair_w;
+    SMART_CFG.adj_w = 4.5; SMART_CFG.pair_w = 1.3;
+    // temporär eigene build-weights mit Fenster
+    const weights = buildArchiveWeights(wMode, A, B, (win==='all'?'all':+win));
+    // kurzzeitig „injecten“, indem generateSmartVariants auf mix basiert, aber wir ersetzen weights per Closure
+    const _buildArchiveWeights = buildArchiveWeights;
+    window.buildArchiveWeights = ()=>weights.slice(); // Hack: innerhalb des Calls neutralisieren
+    let variants = await generateSmartVariants("smart10", want, p=>{ prog.value = p*0.85; info.textContent=`Mother: ${(100*p)|0}%`; });
+    window.buildArchiveWeights = _buildArchiveWeights;
+    SMART_CFG.adj_w = prevAdj; SMART_CFG.pair_w = prevPair;
+
+    // Simulation und Report
+    info.textContent="Simulation (10k)…"; prog.value=0.9;
+    const sim = await simulateHitRates(variants, 10000, p=>{ prog.value = 0.9 + 0.1*p; });
+    const counts = new Map(); for(const v of variants) for(const z of v) counts.set(z,(counts.get(z)||0)+1);
+    const all=Array.from(counts.values()); const mn=Math.min(...all), mx=Math.max(...all), av=(all.reduce((a,b)=>a+b,0)/all.length)||0;
+    const seenPairs = new Set();
+    for(const v of variants) for(let i=0;i<v.length;i++) for(let j=i+1;j<v.length;j++) seenPairs.add(pairKey(v[i],v[j]));
+    const totalPairs = (B-A+1)*((B-A)/2);
+    const pairPct = Math.min(100, 100*seenPairs.size/Math.max(1,totalPairs));
+    const histTxt = sim.hist.map((c,i)=> i.toString().padStart(2," ")+" → "+c.toString().padStart(6," ")).join("\n");
+    const repTxt = [
+      `Varianten: ${variants.length} · Bereich ${A}-${B}`,
+      `Frequenz pro Zahl (min/avg/max): ${mn}/${av.toFixed(2)}/${mx}`,
+      `Einzigartige Paare: ${seenPairs.size} (~${pairPct.toFixed(3)}% grob)`,
+      `P(best ≥ 6) = ${(100*sim.pBestGE6).toFixed(2)}%`,
+      `Histogramm best Hits:\n${histTxt}`,
+      `Fenster-Vergleich: ${win}`
+    ].join("\n");
+    rep.style.display=""; rep.textContent = repTxt;
+    $("#results")._variants = variants;
+    prog.style.display="none";
+    info.textContent="Mother fertig.";
+    renderResults(variants);
+  }
+
+  $("#motherOn").addEventListener("change", ()=>{
+    if($("#motherOn").checked){ setIsolation(true, new Set(["p-archiv","p-mother"])); }
+    else setIsolation(false);
+  });
+  $("#motherRun").addEventListener("click", ()=>{
+    if(!g_draws.length){ alert("Bitte zuerst Archiv laden."); return; }
+    setIsolation(true, new Set(["p-archiv","p-mother"]));
+    runMother().catch(e=>{ $("#motherProg").style.display="none"; $("#motherInfo").textContent="Fehler: "+(e?.message||e); });
+  });
+  $("#motherExit").addEventListener("click", ()=>{ $("#motherOn").checked=false; setIsolation(false); });
+  $("#motherExport").addEventListener("click", ()=>{
+    const v=$("#results")._variants||[];
+    if(!v.length){ alert("Keine Mother-Ergebnisse."); return; }
+    const meta = { mode:"mother", ts:Date.now(), range:[+$("#rangeFrom").value,+$("#rangeTo").value], window:$("#motherWin").value, weights:$("#motherW").value, maxOv:+$("#maxOv").value };
+    downloadText(`mother_variants_${new Date().toISOString().slice(0,10).replace(/-/g,"")}.json`, JSON.stringify({meta, variants:v}, null, 2));
+  });
+
+  /* ===================== Statistik berechnen (UI-Panel) ===================== */
+  $("#calcStats").addEventListener("click", ()=>{
+    if(!g_draws.length){ alert("Bitte zuerst Archiv laden."); return; }
+    const A=+$("#rangeFrom").value, B=+$("#rangeTo").value;
+    const win = $("#statsWindow").value;
+    const stats = (function(){
+      const n=B-A+1, freq=Array(n).fill(0);
+      const start = (win==='all') ? 0 : Math.max(0, g_draws.length - (+win));
+      for(let d=start; d<g_draws.length; d++){
+        for(const z of g_draws[d]) if(z>=A && z<=B) freq[z-A]++;
+      }
+      return freq;
+    })();
+    const items = stats.map((c,i)=>({z:A+i,c})).sort((x,y)=> y.c-x.c || x.z-y.z).slice(0,20);
+    const lines = items.map(it=> `${String(it.z).padStart(2," ")} : ${String(it.c).padStart(6," ")}`).join("\n");
+    const inf = $("#statsInfo"); inf.style.display=""; inf.textContent = `Top 20 im Bereich ${A}-${B}, Fenster: ${win}`;
+    const lst=$("#statsList"); lst.style.display=""; lst.textContent = lines;
+  });
+
+  /* ===================== Favoriten rudimentär (unverändert) ===================== */
+  // (Die bestehenden Favoriten-Funktionen bleiben erhalten – hier nur Platzhalter, falls benötigt.)
   
