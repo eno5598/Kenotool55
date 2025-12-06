@@ -363,6 +363,8 @@ TEST_LOG:
           <option value="smart10-cold">Intelligent (Typ 10 · Cold)</option>
           <option value="smart10-mix">Intelligent (Typ 10 · Mix)</option>
           <option value="smart10-cover">Intelligent (Typ 10 · Abdeckung)</option>
+          <!-- Meta‑Modus: Alle intelligent. Kombiniert Heuristiken für beliebige KENO‑Typen -->
+          <option value="smart_all">Alle intelligent Modus</option>
               <option value="omega">Omega Modus — Blackbox</option>
           <!-- „Hot-Paare“ wurde entfernt; diese Funktion ist über die Hot‑Gruppen separat erreichbar -->
         </select>
@@ -1597,7 +1599,7 @@ function togglePatternBox(){
     const genModeUI = $("#genMode").value || "random";
     // Neuer intelligenter Modus: Bei einem "smart10"-Modus wird die Generierung direkt im Frontend ausgeführt
     // und der Web-Worker übersprungen. Dadurch können heuristische Algorithmen genutzt werden.
-    if(genModeUI && genModeUI.startsWith("smart10")){
+    if(genModeUI && (genModeUI.startsWith("smart10") || genModeUI.startsWith("smart_all"))){
       // UI zurücksetzen, bevor die intelligente Generierung startet
       text($("#genInfo"), "Starte… (Intelligenter Modus)");
       $("#results").innerHTML = "";
@@ -2150,6 +2152,125 @@ async function generateSmartVariants(mode, want, progressCb){
   }
   return variants.map(s => Array.from(s).sort((a,b)=>a-b));
 }
+
+  /**
+   * Erzeugt intelligente Varianten für beliebige KENO‑Typen. Dieser Meta‑Modus
+   * entspricht dem „Alle intelligent Modus“ aus der Aufgabenstellung. Er
+   * verwendet die gleichen Heuristiken wie generateSmartVariants(), ist aber
+   * nicht auf den Typ 10 festgelegt. Stattdessen wird die aktuell im
+   * UI gewählte Kombi‑Größe (KENO‑Typ) übernommen. Als Sub‑Modus kann
+   * optional „hot“, „cold“, „mix“ oder „cover“ gewählt werden (z.B.
+   * smart_all-hot), ansonsten wird neutral gearbeitet. Die Parameter für
+   * Unterabdeckung, Archivgewicht, Adjazenz‑ und Paarstrafen sowie
+   * Distanzboni werden aus SMART_CONFIG übernommen.
+   *
+   * @param {string} mode Modus‑String, beginnend mit „smart_all“ (z.B. smart_all-hot).
+   * @param {number} want Anzahl der gewünschten Varianten.
+   * @param {function} progressCb Callback, um den Fortschritt 0..1 zu melden.
+   * @returns {Promise<number[][]>} Liste der generierten Kombinationen.
+   */
+  async function generateSmartAllVariants(mode, want, progressCb){
+    // Aktuellen KENO‑Typ aus dem UI lesen (S=2..10)
+    let k = parseInt(document.getElementById('kenoType')?.value || '10', 10);
+    if(!k || k < 1) k = 10;
+    const A = +( $("#rangeFrom").value ), B = +( $("#rangeTo").value );
+    const maxOv = Math.max(0, +( $("#maxOv").value || 4 ));
+    const rangeLen = B - A + 1;
+    const target = (want * k) / rangeLen;
+    const tMax = Math.ceil(target + SMART_CONFIG.tTolerance);
+    // extrahiere Submodus: "smart_all-hot" → "hot"
+    const submode = String(mode||'smart_all').replace('smart_all','').replace(/^-/,'');
+    const w = buildArchiveWeights(submode);
+    const pairMult = (String(mode||'').includes('cover')) ? 2.0 : 1.0;
+    // Map für die Anzahl der bisherigen Verwendungen jeder Zahl
+    const counts = new Map();
+    for(let z=A; z<=B; z++) counts.set(z, 0);
+    const pairUsed = new Map();
+    function pairKey(a,b){ return (a<b) ? `${a}-${b}` : `${b}-${a}`; }
+    const variants = [];
+    for(let t=0; t<want; t++){
+      const cur = new Set();
+      // Baue eine Variante mit k Zahlen auf Basis der Score‑Heuristik
+      while(cur.size < k){
+        let bestZ = null;
+        let bestScore = -Infinity;
+        for(let z=A; z<=B; z++){
+          if(cur.has(z)) continue;
+          if(counts.get(z) >= tMax) continue;
+          // Prüfe auf zu lange zusammenhängende Sequenzen innerhalb der aktuellen Variante
+          let runLength = 1;
+          let left = z - 1;
+          while(cur.has(left)){ runLength++; left--; }
+          let right = z + 1;
+          while(cur.has(right)){ runLength++; right++; }
+          if(runLength >= 4) continue;
+          // Prüfe maximale Überschneidung mit bereits gebauten Varianten
+          let ok = true;
+          for(const vSet of variants){
+            let ov = 0;
+            for(const el of vSet){
+              if(cur.has(el) || el === z){
+                ov++;
+                if(ov > maxOv){ ok = false; break; }
+              }
+            }
+            if(!ok) break;
+          }
+          if(!ok) continue;
+          // Adjazenz‑ und Paarstrafen
+          let adjCount = 0;
+          let pairPenaltySum = 0;
+          for(const x of cur){
+            if(Math.abs(x - z) === 1) adjCount++;
+            const key = pairKey(z,x);
+            pairPenaltySum += (pairUsed.get(key) || 0);
+          }
+          // Distanzbonus: grösserer Abstand zu bestehenden Zahlen ist besser
+          let minDist = Infinity;
+          for(const x of cur){
+            const d = Math.abs(z - x);
+            if(d < minDist) minDist = d;
+          }
+          if(cur.size === 0) minDist = B - A;
+          const under = Math.max(0, target - counts.get(z));
+          const weight = w.get(z) || 1;
+          const score =
+            SMART_CONFIG.underCoverageWeight * under +
+            SMART_CONFIG.archiveWeight * weight +
+            (-SMART_CONFIG.pairPenalty * pairMult) * pairPenaltySum +
+            (-SMART_CONFIG.adjacencyPenalty) * adjCount +
+            SMART_CONFIG.distanceWeight * minDist;
+          if(score > bestScore){
+            bestScore = score;
+            bestZ = z;
+          }
+        }
+        if(bestZ === null){
+          // Fallback: wähle eine noch nicht überverwendete Zahl
+          for(let z=A; z<=B; z++){
+            if(!cur.has(z) && counts.get(z) < tMax){ bestZ = z; break; }
+          }
+          if(bestZ === null) break;
+        }
+        cur.add(bestZ);
+      }
+      const arr = Array.from(cur).sort((a,b)=>a-b);
+      // aktualisiere Zähler und Paare
+      for(const z of arr) counts.set(z, counts.get(z) + 1);
+      for(let i=0; i<arr.length; i++){
+        for(let j=i+1; j<arr.length; j++){
+          const key = pairKey(arr[i], arr[j]);
+          pairUsed.set(key, (pairUsed.get(key)||0) + 1);
+        }
+      }
+      variants.push(new Set(arr));
+      if(progressCb) progressCb((t+1)/Math.max(1, want));
+      // kurze Pause, um den Browser nicht zu blockieren
+      if(t % 5 === 0) await new Promise(res => setTimeout(res, 0));
+    }
+    // Gib die finalen Varianten als sortierte Arrays zurück
+    return variants.map(s => Array.from(s).sort((a,b)=>a-b));
+  }
 // Monte-Carlo-Simulation mit Histogramm. Fortschrittsupdates über Callback.
 async function simulateHitRatesDetailed(variants, runs, progressCb){
   if(!variants || !variants.length) return {prob:0, hist:[]};
@@ -2523,7 +2644,15 @@ async function runSmart(mode){
     text($("#genInfo"), "Erzeuge intelligente Varianten …");
     await new Promise(r => setTimeout(r, 10));
     const want = Math.max(1, +( $("#want").value || 50 ));
-    const variants = await generateSmartVariants(mode, want, (p)=>{ $("#genProg").value = p * 0.6; });
+    // Wähle je nach Modus die passende Heuristik: „smart_all“ nutzt die generische
+    // Implementierung, alle anderen „smart10“-Modi verwenden generateSmartVariants().
+    let variants;
+    const updateProg = (p)=>{ $("#genProg").value = p * 0.6; };
+    if(mode && mode.startsWith('smart_all')){
+      variants = await generateSmartAllVariants(mode, want, updateProg);
+    }else{
+      variants = await generateSmartVariants(mode, want, updateProg);
+    }
     $("#genProg").value = 0.6;
     renderCombosToUI(variants);
     text($("#genInfo"), "Simuliere Erfolgsindikator (≥6 Treffer) …");
