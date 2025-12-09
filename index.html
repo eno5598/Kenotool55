@@ -2,21 +2,25 @@
 <!--
   High-End KENO Analyse-App (2025).
 
-  Dieses Tool:
-  - behält das Archiv-System inkl. Auto-Download (archiv_keno.zip) bei,
-  - behält Keno-Typ und Zahlenbereich als zentrale Einstellungen,
-  - führt einen komplexen, einstellbar intensiven Scan über das ganze Archiv aus,
-  - berechnet viele Muster (Frequenzen, Hot/Cold-Deviation, Streaks, Intervalle,
-    Paare/Triples, Next-Draw-Pattern),
-  - erzeugt 3 verschiedene 20er-Kandidatensätze (drei Strategien),
-  - kann aus jedem Kandidatensatz Varianten erzeugen (jeweils separat),
-  - kann diese Varianten mit dem gesamten Archiv vergleichen (Trefferverteilung: z.B. 8/8, 7/8, 6/8 ...).
+  Features:
+  - Behält Archiv-System inkl. Auto-Download (archiv_keno.zip) und speichert das Archiv im Browser-Speicher,
+    sodass es beim erneuten Laden der Seite sofort verfügbar ist, bis man ein neues Archiv lädt.
+  - Beibehaltung des Keno-Typs und des Zahlenbereichs als zentrale Einstellungen.
+  - Komplexer, einstellbarer Scan über das gesamte Archiv mit intensiver Musteranalyse:
+      Frequenzen, Hot/Cold-Deviation, Streaks, Intervalle, Paare/Triples, Next-Draw-Pattern,
+      Abstandsmuster (Gap-Analyse) und Erkennung von überfälligen Zahlen mit typischen Abständen.
+  - Berechnung von vier verschiedenen Kandidatensätzen (Systeme A–D), jeweils 20 Zahlen:
+      A: Hot/Deviation (häufige & positiv abweichende Zahlen)
+      B: Cold/Rebound (unterrepräsentierte Zahlen, die zurückkommen könnten)
+      C: Pattern/Next-Draw (Zahlen, die häufig nach ähnlichen Mustern auftauchen)
+      D: Gap‑Rückkehr (Zahlen mit langen Pausen & typischem Abstandsmuster, die „überfällig“ sind)
+  - Aus jedem Satz können Varianten erzeugt werden (getrennt für jeden Satz). Anzahl und Overlap begrenzbar.
+  - Varianten können mit dem gesamten Archiv verglichen werden (Trefferverteilung: z.B. 8/8, 7/8, 6/8 …).
 
-  WICHTIG:
-  - KENO-Ziehungen sind zufallsbasiert (RNG/TRNG). Es gibt KEINE Garantie, dass
-    die hier vorgeschlagenen Zahlen tatsächlich kommen.
+  Hinweis:
+  - KENO-Ziehungen sind zufallsbasiert. Es gibt KEINE Garantie, dass die vorgeschlagenen Zahlen tatsächlich kommen.
   - Alle „Wahrscheinlichkeiten“ sind heuristische Schätzungen aus Statistik & Mustern.
-  - Dieses Tool soll „High-End-Analyse“ liefern, aber NICHT „80% sichere Gewinne“ versprechen.
+  - Dieses Tool liefert „High‑End‑Analyse“, aber keine Gewinnegarantie.
 -->
 <html lang="de">
 <head>
@@ -252,7 +256,7 @@
     <h1>KENO High-End Analyse-Tool</h1>
     <div class="hint">
       Dieses Tool analysiert dein KENO-Archiv statistisch (Hot/Cold, Deviation, Muster,
-      „Next-Draw“-Pattern, Paare usw.) und schlägt 3 verschiedene Kandidatensätze à 20 Zahlen vor.
+      „Next-Draw“-Pattern, Gap/Rückkehr, Paare usw.) und schlägt 4 verschiedene Kandidatensätze à 20 Zahlen vor.
       Aus jedem Satz kannst du Varianten bauen und mit dem gesamten Archiv vergleichen.
       <strong>Hinweis:</strong> KENO bleibt ein Zufallsspiel – keine Gewinngarantie.
     </div>
@@ -367,7 +371,7 @@
           <div class="flex gap-2 flex-wrap">
             <button id="scanBtn" class="primary">🧠 Archiv scannen</button>
             <span class="pill">
-              <span>Modi:</span> Hot/Cold-Deviation · Pattern-Follow · Cold-Rebound
+              <span>Modi:</span> Hot/Deviation · Cold/Rebound · Pattern-Follow · Gap‑Rückkehr
             </span>
           </div>
 
@@ -380,7 +384,7 @@
           </div>
 
           <div id="candidatesSection" style="display:none;" class="mt-3">
-            <h3>3 x 20 Kandidaten-Sätze</h3>
+            <h3>4 x 20 Kandidaten-Sätze</h3>
             <div class="hint">
               Jeder Satz basiert auf einer anderen Strategie. Du kannst einen oder mehrere
               Sätze für die Varianten-Erzeugung auswählen.
@@ -444,7 +448,7 @@
 
     // Globale Daten
     let g_draws = [];           // Liste von Ziehungen (Array von Zahlen)
-    let g_drawSize = 0;         // typischerweise 20
+    let g_drawSize = 0;         // typischerweise 20 (erkannt aus Archiv)
     let g_scanData = null;      // alle berechneten Statistiken
     let g_candidateSets = [];   // [{id,label,type,nums:[...], meta:{...}}, ...]
     let g_variantsBySet = {};   // id -> [ {numbers:[...], hist:null|{k->count}} ]
@@ -491,30 +495,48 @@
       parseArchive(raw);
     }
 
-    // CSV/TXT parsen → g_draws
+    // CSV/TXT parsen → g_draws & g_drawSize
     function parseArchive(raw){
       const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const draws = [];
+      const lensCount = {};
       for(const ln of lines){
         if(/zahl\s*1/i.test(ln)) continue;  // Kopfzeile(n) ignorieren
         const nums = ln.match(/\d+/g);
-        if(!nums || nums.length < 10) continue;
+        if(!nums || nums.length < 5) continue; // sehr kurze Zeilen ignorieren
         const arr = nums.map(x => parseInt(x,10));
         draws.push(arr);
+        const len = arr.length;
+        lensCount[len] = (lensCount[len]||0) + 1;
       }
       if(draws.length === 0){
         txt($('#fileStatus'), 'Keine gültigen Ziehungen gefunden.');
         return;
       }
-      g_draws    = draws;
-      g_drawSize = draws[0].length;
-      txt($('#fileStatus'), `${draws.length} Ziehungen geladen (je ${g_drawSize} Zahlen).`);
+      // Bestimme die häufigste Länge als g_drawSize
+      let modeLen = null;
+      let modeCount = 0;
+      for(const k in lensCount){
+        const c = lensCount[k];
+        if(c > modeCount){ modeCount = c; modeLen = parseInt(k,10); }
+      }
+      const filtered = draws.filter(arr => arr.length === modeLen);
+      g_draws    = filtered;
+      g_drawSize = modeLen;
+      txt($('#fileStatus'), `${filtered.length} Ziehungen geladen (je ${g_drawSize} Zahlen).`);
 
-      // Reset Analyse
-      g_scanData     = null;
+      // Speichere im LocalStorage
+      try{
+        localStorage.setItem('kenoArchive', JSON.stringify({ draws: g_draws, size: g_drawSize }));
+      }catch(e){ console.warn('Kann Archiv nicht speichern:', e); }
+
+      // Reset Analyse & UI
+      g_scanData      = null;
       g_candidateSets = [];
       g_variantsBySet = {};
       $('#scanStatus').textContent = '';
+      $('#scanStatus').classList.remove('error');
+      $('#scanProg').style.display = 'none';
       $('#candidatesSection').style.display = 'none';
       $('#candGroups').innerHTML = '';
       $('#varStatus').textContent = '';
@@ -529,7 +551,20 @@
     });
 
     window.addEventListener('load', () => {
-      if($('#autoloadOnStart').checked){
+      // Archiv aus LocalStorage laden, falls vorhanden
+      try{
+        const saved = localStorage.getItem('kenoArchive');
+        if(saved){
+          const data = JSON.parse(saved);
+          if(data && Array.isArray(data.draws) && data.size){
+            g_draws    = data.draws;
+            g_drawSize = data.size;
+            txt($('#fileStatus'), `${g_draws.length} Ziehungen geladen (je ${g_drawSize} Zahlen) (aus Speicher).`);
+          }
+        }
+      }catch(e){ console.warn('Kann gespeichertes Archiv nicht laden:', e); }
+      // auto-load via remote if eingestellt und noch kein Archiv vorhanden
+      if(g_draws.length === 0 && $('#autoloadOnStart').checked){
         autoLoadOfficialArchive().catch(console.error);
       }
     });
@@ -589,6 +624,7 @@
             prog.value = received / total;
             txt(st, `Lade Archiv … ${(100*received/total).toFixed(0)}%`);
           } else {
+            // falls Content-Length unbekannt, langsam erhöhen
             prog.value = Math.min(1, prog.value + 0.02);
             txt(st, `Lade Archiv … ${received.toLocaleString()} Bytes`);
           }
@@ -651,6 +687,17 @@
       $('#scanProg').value = 0;
 
       const totalDraws = g_draws.length;
+      // Schätze die durchschnittliche Anzahl an Zahlen im Bereich pro Ziehung
+      let sumLen = 0, countLen=0;
+      const maxSample = Math.min(200, totalDraws);
+      for(let i=0; i<maxSample; i++){
+        const arr = g_draws[i].filter(v => v>=A && v<=B);
+        sumLen += arr.length;
+        countLen++;
+      }
+      const g_drawSizeRange = countLen ? Math.round(sumLen / countLen) : g_drawSize;
+
+      // Initialisiere Datenstrukturen
       const statsNumber = {};
       for(let z = A; z <= B; z++){
         statsNumber[z] = {
@@ -660,8 +707,8 @@
           currentStreak: 0,
           lastSeen: -1,
           pairScore: 0,
-          followFreq: 0,    // wie oft in „next draw“ nach ähnlichen Mustern
-          dev: 0            // Abweichung von erwarteter Häufigkeit
+          followFreq: 0,
+          dev: 0
         };
       }
       const pairCounts   = new Map();
@@ -694,7 +741,7 @@
             st.lastSeen = i;
           }
 
-          // Paare/Triples (vereinfacht, aber aussagekräftig)
+          // Paare/Triples (vereinfachte Double-Count)
           const n = sorted.length;
           for(let a=0; a<n; a++){
             const vA = sorted[a];
@@ -704,7 +751,6 @@
               pairCounts.set(key2, (pairCounts.get(key2)||0) + 1);
               statsNumber[vA].pairScore++;
               statsNumber[vB].pairScore++;
-              // kleine Triple-Gewichtung (ohne extra Map, CPU-freundlicher)
             }
           }
 
@@ -742,7 +788,7 @@
 
       // Erwartete Häufigkeit (Coarse-Grained Deviation-System)
       const poolSize = (B - A + 1);
-      const expected = (totalDraws * g_drawSize) / poolSize;
+      const expected = (totalDraws * g_drawSizeRange) / poolSize;
       for(let z = A; z <= B; z++){
         statsNumber[z].dev = statsNumber[z].freq - expected;
       }
@@ -771,13 +817,11 @@
         }
       }
 
-      // Scan-Intensität: zusätzliche Durchläufe (z.B. verstärkte Muster-Smoothing)
-      // Wir wiederholen einige „soft“-Operationen, um Rechenzeit und Glättung zu erhöhen.
+      // Scan-Intensität: zusätzliche Durchläufe (Verstärkung/Glättung)
       for(let round = 1; round < scanRounds; round++){
         txt($('#scanStatus'), `Vertiefe Muster (Runde ${round+1}/${scanRounds}) …`);
         const factor = 1 + round * 0.1;
         for(let z = A; z <= B; z++){
-          // leichte Verstärkung von Deviation & Follow-Pattern
           statsNumber[z].dev       *= factor;
           followFreq[z]            *= factor;
           statsNumber[z].pairScore *= (1 + 0.03*round);
@@ -795,6 +839,7 @@
       const arrPair   = [];
       const arrDev    = [];
       const arrFollow = [];
+      const arrRatio  = [];
 
       for(let z = A; z <= B; z++){
         const st = statsNumber[z];
@@ -810,6 +855,12 @@
         arrDev.push(st.dev);
         arrFollow.push(followFreq[z]);
 
+        // Abstand-Muster: Ratio von aktuellem Gap zu durchschnittlichem Gap
+        const avgGap = st.gaps.length ? (st.gaps.reduce((s,x)=>s+x,0) / st.gaps.length) : totalDraws;
+        const currentGap = (st.lastSeen >= 0) ? ((totalDraws - 1) - st.lastSeen) : totalDraws;
+        const ratio = avgGap > 0 ? (currentGap / avgGap) : 0;
+        arrRatio.push(ratio);
+
         tempStats[z] = {
           freq: st.freq,
           freqRecent: freqRecent[z],
@@ -818,9 +869,13 @@
           pairScore: st.pairScore,
           dev: st.dev,
           followFreq: followFreq[z],
+          avgGap,
+          currentGap,
+          ratio,
           scoreHot: 0,
           scoreCold: 0,
-          scorePattern: 0
+          scorePattern: 0,
+          scoreDue: 0
         };
       }
 
@@ -833,33 +888,30 @@
       }
       const NF      = norm(arrFreq);
       const NR      = norm(arrRecent);
-      const NRecInv = norm(arrRecency,true); // kleinere Recency = besser
+      const NRecInv = norm(arrRecency,true);
       const NS      = norm(arrStreak);
       const NP      = norm(arrPair);
-      // Deviation: Hot (positiv), Cold (negativ)
       const NDevPos = norm(arrDev.map(v => Math.max(0,v)));
       const NDevNeg = norm(arrDev.map(v => Math.max(0,-v)));
       const NFollow = norm(arrFollow);
+      const NRatio  = norm(arrRatio);
 
-      // Gewichte für 3 Strategien:
-      // 1) Hot-Bias (Hot/Cold + starke Teilnahme)
-      // 2) Cold-Rebound (unterrepräsentierte Zahlen)
-      // 3) Pattern-Follow (Follow-Freq + Streak/Overlap)
-
-      const candHot   = [];
-      const candCold  = [];
-      const candPat   = [];
+      // Kandidaten-Arrays
+      const candHot  = [];
+      const candCold = [];
+      const candPat  = [];
+      const candDue  = [];
 
       let idx = 0;
       for(let z = A; z <= B; z++){
         const sHot =
           1.1*NF[idx]      +  // Gesamtfrequenz
-          1.0*NR[idx]      +  // letzte Ziehungen
+          1.0*NR[idx]      +  // Häufigkeit im jüngsten Fenster
           0.6*NDevPos[idx] +  // positive Deviation (Hot)
           0.6*NP[idx]      +  // starke Paare
           0.4*NS[idx]      +  // Streaks
           0.3*NFollow[idx] +  // Follow-Pattern
-          0.4*NRecInv[idx];   // „frisch aktiv“
+          0.4*NRecInv[idx];   // seit kurzem aktiv
 
         const sCold =
           0.5*NF[idx]       +
@@ -875,13 +927,20 @@
           0.4*NS[idx]      +
           0.3*NDevPos[idx];
 
+        const sDue =
+          1.2*NRatio[idx]  + // Verhältnis aktueller Gap zu typischem Gap
+          0.8*NDevNeg[idx] + // bevorzugt unterrepräsentierte Zahlen
+          0.5*NRecInv[idx];  // lange nicht gesehen
+
         tempStats[z].scoreHot     = sHot;
         tempStats[z].scoreCold    = sCold;
         tempStats[z].scorePattern = sPat;
+        tempStats[z].scoreDue     = sDue;
 
         candHot.push({z,score:sHot});
         candCold.push({z,score:sCold});
         candPat.push({z,score:sPat});
+        candDue.push({z,score:sDue});
 
         idx++;
       }
@@ -889,6 +948,7 @@
       candHot.sort((a,b)=>b.score-a.score);
       candCold.sort((a,b)=>b.score-a.score);
       candPat.sort((a,b)=>b.score-a.score);
+      candDue.sort((a,b)=>b.score-a.score);
 
       const pickTop20 = arr => arr.slice(0,20).map(x=>x.z);
 
@@ -913,14 +973,21 @@
         type: 'pattern',
         nums: pickTop20(candPat)
       };
+      const setDue = {
+        id: 'gapdue',
+        label: 'System D – Gap-Rückkehr',
+        description: 'Betont Zahlen mit langen Pausen & typischem Abstandsmuster (überfällig).',
+        type: 'gap',
+        nums: pickTop20(candDue)
+      };
 
       g_scanData      = { statsNumber, tempStats, overlapHist, freqRecent, followFreq };
-      g_candidateSets = [setHot, setCold, setPat];
-      g_variantsBySet = {};   // reset
+      g_candidateSets = [setHot, setCold, setPat, setDue];
+      g_variantsBySet = {};
 
       $('#scanProg').value = 1;
       $('#scanProg').style.display = 'none';
-      txt($('#scanStatus'), 'Scan abgeschlossen. 3 Kandidatensätze berechnet.');
+      txt($('#scanStatus'), 'Scan abgeschlossen. 4 Kandidatensätze berechnet.');
 
       renderCandidateSets();
     }
@@ -1019,7 +1086,7 @@
         return;
       }
 
-      g_variantsBySet = {};   // neu erzeugen
+      g_variantsBySet = {};
       const blocksWrap = $('#varBlocks');
       blocksWrap.innerHTML = '';
 
@@ -1029,7 +1096,7 @@
         for(let i=1; i<arr.length; i++){
           if(arr[i] === arr[i-1] + 1){
             run++;
-            if(run >= 4) return true;    // 4+ aufeinanderfolgende vermeiden
+            if(run >= 4) return true;
           }else{
             run = 1;
           }
@@ -1051,11 +1118,11 @@
         const seen   = new Set();
 
         let attempts = 0;
-        const maxAttempts = want * 300;
+        const maxAttempts = want * 400;
 
         while(results.length < want && attempts < maxAttempts){
           attempts++;
-          // Mischung aus „Wheel“ und Zufall: wir permutieren, nehmen S aus 20
+          // Mische Pool und wähle S
           const shuffled = pool.slice().sort(()=>Math.random()-0.5);
           const variant  = shuffled.slice(0,S).sort((a,b)=>a-b);
 
@@ -1142,7 +1209,6 @@
       // Pre-Sort draws für schnelleren Overlap
       const sortedDraws = g_draws.map(dr => dr.slice().sort((a,b)=>a-b));
 
-      // Für jede Variante: Histogramm der Treffer 0..S
       for(const setId of sets){
         const arr = g_variantsBySet[setId];
         for(const v of arr){
@@ -1184,48 +1250,48 @@
       const sets = g_candidateSets.filter(s => g_variantsBySet[s.id] && g_variantsBySet[s.id].length);
 
       for(const set of sets){
-        const arr = g_variantsBySet[set.id];
-        if(!arr.length) continue;
-        const box = el('div','variants-block');
-        const head = el('div','flex-between');
-        const t1   = el('div');
-        t1.innerHTML = `<strong>${set.label}</strong>`;
-        const t2   = el('div','hint');
-        t2.textContent = `${arr.length} Varianten · Treffer 0…${S} über ${g_draws.length} Ziehungen`;
-        head.appendChild(t1); head.appendChild(t2);
-        box.appendChild(head);
+          const arr = g_variantsBySet[set.id];
+          if(!arr.length) continue;
+          const box = el('div','variants-block');
+          const head = el('div','flex-between');
+          const t1   = el('div');
+          t1.innerHTML = `<strong>${set.label}</strong>`;
+          const t2   = el('div','hint');
+          t2.textContent = `${arr.length} Varianten · Treffer 0…${S} über ${g_draws.length} Ziehungen`;
+          head.appendChild(t1); head.appendChild(t2);
+          box.appendChild(head);
 
-        const table = el('table','compare-table');
-        const thead = el('thead');
-        const trh   = el('tr');
-        trh.appendChild(th('Var.'));
-        for(let k=S; k>=0; k--){
-          trh.appendChild(th(`${k}/${S}`));
-        }
-        thead.appendChild(trh);
-        table.appendChild(thead);
-
-        const tbody = el('tbody');
-        arr.forEach((v,idx)=>{
-          const tr = el('tr');
-          tr.appendChild(td('#'+String(idx+1).padStart(2,'0')));
+          const table = el('table','compare-table');
+          const thead = el('thead');
+          const trh   = el('tr');
+          trh.appendChild(th('Var.'));
           for(let k=S; k>=0; k--){
-            const val = (v.hist && v.hist[k]) || 0;
-            tr.appendChild(td(val.toString()));
+            trh.appendChild(th(`${k}/${S}`));
           }
-          tbody.appendChild(tr);
-        });
-        table.appendChild(tbody);
-        box.appendChild(table);
-        wrap.appendChild(box);
+          thead.appendChild(trh);
+          table.appendChild(thead);
+
+          const tbody = el('tbody');
+          arr.forEach((v,idx)=>{
+            const tr = el('tr');
+            tr.appendChild(td('#'+String(idx+1).padStart(2,'0')));
+            for(let k=S; k>=0; k--){
+              const val = (v.hist && v.hist[k]) || 0;
+              tr.appendChild(td(val.toString()));
+            }
+            tbody.appendChild(tr);
+          });
+          table.appendChild(tbody);
+          box.appendChild(table);
+          wrap.appendChild(box);
       }
 
       function th(text){ const x = document.createElement('th'); x.textContent = text; return x; }
       function td(text){ const x = document.createElement('td'); x.textContent = text; return x; }
     }
 
-    // Hinweis: Ein ausführlicherer Self-Test könnte hier ergänzt werden.
-    // Wegen Performance im echten Archiv ist er standardmäßig deaktiviert.
+    // Hinweis: Self-Test oder Validierungsfunktionen könnten hier hinzugefügt werden. Wegen
+    // Performance und Umfang sind sie nicht standardmäßig aktiv.
 
   })();
   </script>
