@@ -294,57 +294,61 @@
             <button id="clearCache" class="danger">🗑️ Archiv löschen</button>
           </div>
         </div>
-        <!-- Einstellungen -->
+        <!-- Einstellungen / Grund-Setup -->
         <div class="panel mt-3">
           <div class="section-title">Grund‑Setup</div>
-          <h2>Einstellungen</h2>
-          <label for="kenoType">Keno‑Typ (Anzahl Zahlen pro Tipp)</label>
-          <select id="kenoType">
-            <option value="2">Typ 2</option>
-            <option value="3">Typ 3</option>
-            <option value="4">Typ 4</option>
-            <option value="5">Typ 5</option>
-            <option value="6" selected>Typ 6</option>
-            <option value="7">Typ 7</option>
-            <option value="8">Typ 8</option>
-            <option value="9">Typ 9</option>
-            <option value="10">Typ 10</option>
-          </select>
-          <div class="flex gap-3 mt-2 flex-wrap">
-            <div style="flex:1 1 120px;">
-              <label for="rangeFrom">Zahlenbereich von</label>
-              <input type="number" id="rangeFrom" value="1" min="1" max="200">
+          <h2>Grund‑Setup</h2>
+          <!-- Allgemeine Einstellungen -->
+          <h3 class="mt-1">Allgemein</h3>
+          <div class="flex gap-3 mt-1 flex-wrap">
+            <div style="flex:1 1 150px; min-width:0;">
+              <label for="kenoType">Keno‑Typ (Anzahl Zahlen pro Tipp)</label>
+              <select id="kenoType">
+                <option value="2">Typ 2</option>
+                <option value="3">Typ 3</option>
+                <option value="4">Typ 4</option>
+                <option value="5">Typ 5</option>
+                <option value="6" selected>Typ 6</option>
+                <option value="7">Typ 7</option>
+                <option value="8">Typ 8</option>
+                <option value="9">Typ 9</option>
+                <option value="10">Typ 10</option>
+              </select>
             </div>
-            <div style="flex:1 1 120px;">
-              <label for="rangeTo">Zahlenbereich bis</label>
-              <input type="number" id="rangeTo" value="70" min="1" max="200">
-            </div>
-          </div>
-          <div class="mt-2 flex gap-3 flex-wrap">
-            <div style="flex:1 1 120px;">
+            <div style="flex:1 1 150px; min-width:0;">
               <label for="numVariants">Varianten pro Satz</label>
               <input type="number" id="numVariants" value="10" min="1" max="200">
             </div>
-            <div style="flex:1 1 120px;">
+            <div style="flex:1 1 150px; min-width:0;">
               <label for="overlapLimit">Max. Overlap (zwischen Varianten)</label>
               <input type="number" id="overlapLimit" value="0" min="0" max="20">
               <div class="hint">0 = keine Begrenzung</div>
             </div>
           </div>
-          <div class="mt-2 flex gap-3 flex-wrap">
-            <div style="flex:1 1 120px;">
+          <div class="flex gap-3 mt-1 flex-wrap">
+            <div style="flex:1 1 150px; min-width:0;">
+              <label for="rangeFrom">Zahlenbereich von</label>
+              <input type="number" id="rangeFrom" value="1" min="1" max="200">
+            </div>
+            <div style="flex:1 1 150px; min-width:0;">
+              <label for="rangeTo">Zahlenbereich bis</label>
+              <input type="number" id="rangeTo" value="70" min="1" max="200">
+            </div>
+          </div>
+          <!-- Scan-Parameter -->
+          <h3 class="mt-3">Scan‑Parameter</h3>
+          <div class="flex gap-3 mt-1 flex-wrap">
+            <div style="flex:1 1 150px; min-width:0;">
               <label for="scanRounds">Scan‑Intensität (Runden)</label>
               <input type="number" id="scanRounds" value="3" min="1" max="100">
-              <div class="hint">Mehr Runden = längerer &amp; tiefer Analyse‑Scan.</div>
+              <div class="hint">Mehr Runden = längerer &amp; tiefer Analyse‑Scan.</div>
             </div>
-            <div style="flex:1 1 120px;">
+            <div style="flex:1 1 150px; min-width:0;">
               <label for="recentWindow">Fenster „letzte Ziehungen“</label>
               <input type="number" id="recentWindow" value="100" min="10" max="1000">
               <div class="hint">Für Hot/Cold‑Auswertung.</div>
             </div>
-          </div>
-          <div class="mt-2 flex gap-3 flex-wrap">
-            <div style="flex:1 1 120px;">
+            <div style="flex:1 1 150px; min-width:0;">
               <label for="similarityOverlap">Ähnlichkeits‑Schwelle (Overlap)</label>
               <input type="number" id="similarityOverlap" value="8" min="1" max="20">
               <div class="hint">Für „Next‑Draw“: Ziehungen mit ähnlichem Overlap zur letzten werden stärker gewichtet.</div>
@@ -867,60 +871,125 @@
       candGap.sort((a,b) => b.score - a.score);
       // Helper zum Auswählen von Top 20
       const pickTop20 = arr => arr.slice(0,20).map(x => x.z);
-      // System A–D Sets
-      // Beachte: Die IDs der Sets müssen mit den Schlüsseln in allSorted übereinstimmen, damit das
-      // Deduplicate‑Verfahren zusätzliche Zahlen aus den vollständigen Rankings beziehen kann.
-      const setA = {id:'hot',    label:'System A – Hot/Deviation', description:'Betont häufige & positiv abweichende Zahlen.', type:'hot',    nums:pickTop20(candHot)};
-      const setB = {id:'cold',   label:'System B – Cold/Rebound',  description:'Betont unterrepräsentierte „Cold“-Zahlen mit Rebound‑Idee.', type:'cold',   nums:pickTop20(candCold)};
-      const setC = {id:'pattern',   label:'System C – Pattern/Next‑Draw', description:'Betont Follow‑Pattern nach ähnlichen Situationen zur letzten Ziehung.', type:'pattern', nums:pickTop20(candPat)};
-      const setD = {id:'gap',       label:'System D – Gap‑Rückkehr', description:'Betont Zahlen mit langen Pausen & typischem Abstands‑Muster (überfällig).', type:'gap', nums:pickTop20(candGap)};
+      
+      // System A–D Sets
+      // IDs der Sets entsprechen ihren Typen, damit spätere Zuordnungen korrekt funktionieren.  
+      // Jede Strategie erhält ihre 20 bestbewerteten Zahlen (kein globales Deduplication‑Verfahren).
+      const setA = {
+        id: 'hot',
+        label: 'System A – Hot/Deviation',
+        description: 'Betont häufige & positiv abweichende Zahlen.',
+        type: 'hot',
+        nums: pickTop20(candHot)
+      };
+      const setB = {
+        id: 'cold',
+        label: 'System B – Cold/Rebound',
+        description: 'Betont unterrepräsentierte “Cold”-Zahlen mit Rebound‑Idee.',
+        type: 'cold',
+        nums: pickTop20(candCold)
+      };
+      const setC = {
+        id: 'pattern',
+        label: 'System C – Pattern/Next‑Draw',
+        description: 'Betont Follow‑Pattern nach ähnlichen Situationen zur letzten Ziehung.',
+        type: 'pattern',
+        nums: pickTop20(candPat)
+      };
+      const setD = {
+        id: 'gap',
+        label: 'System D – Gap‑Rückkehr',
+        description: 'Betont Zahlen mit langen Pausen & typischem Abstands‑Muster (überfällig).',
+        type: 'gap',
+        nums: pickTop20(candGap)
+      };
       // System E: Odd/Even Balance (10 Odd + 10 Even)
+      // Wir sortieren die Zahlen mit Bezug auf ihren Hot‑Score und wählen je
+      // 10 Odd‑ und 10 Even‑Zahlen. Sollte eine Kategorie weniger
+      // als 10 Werte enthalten, füllen wir aus den übrigen Zahlen (nach Score)
+      // auf, um stets 20 Zahlen zu liefern.
       const oddsSorted  = [];
       const evensSorted = [];
-      for(const item of candHot){ if(item.z % 2 === 1) oddsSorted.push(item); else evensSorted.push(item); }
+      for (const item of candHot) {
+        (item.z % 2 === 1 ? oddsSorted : evensSorted).push(item);
+      }
       oddsSorted.sort((a,b) => b.score - a.score);
       evensSorted.sort((a,b) => b.score - a.score);
-      const oddsTop  = oddsSorted.slice(0,10).map(x=>x.z);
-      const evensTop = evensSorted.slice(0,10).map(x=>x.z);
+      let oddsTop  = oddsSorted.slice(0,10).map(x => x.z);
+      let evensTop = evensSorted.slice(0,10).map(x => x.z);
+      const remainder = candHot.map(x=>x.z).filter(z => !oddsTop.includes(z) && !evensTop.includes(z));
+      while (oddsTop.length < 10 && remainder.length) { oddsTop.push(remainder.shift()); }
+      while (evensTop.length < 10 && remainder.length) { evensTop.push(remainder.shift()); }
       const numsE = oddsTop.concat(evensTop).slice(0,20);
-      const setE = {id:'oddeven', label:'System E – Odd/Even Balance', description:'Ausgewogene Kombination aus 10 geraden und 10 ungeraden Zahlen.', type:'oddeven', nums: numsE};
+      const setE = {
+        id: 'oddeven',
+        label: 'System E – Odd/Even Balance',
+        description: 'Ausgewogene Kombination aus 10 geraden und 10 ungeraden Zahlen.',
+        type: 'oddeven',
+        nums: numsE
+      };
       // System F: High/Low Balance (untere Hälfte/obere Hälfte)
+      // Wir teilen den Bereich in zwei Hälften auf Grundlage der Mitte. Aus
+      // candHot werden die jeweils besten 10 niedrigen und 10 hohen Zahlen
+      // ausgewählt. Sollte eine Hälfte weniger Werte liefern, füllen wir mit
+      // verbleibenden Zahlen auf.
       const mid = Math.floor((A + B) / 2);
       const lowSorted  = [];
       const highSorted = [];
-      for(const item of candHot){ if(item.z <= mid) lowSorted.push(item); else highSorted.push(item); }
+      for (const item of candHot) {
+        (item.z <= mid ? lowSorted : highSorted).push(item);
+      }
       lowSorted.sort((a,b) => b.score - a.score);
       highSorted.sort((a,b) => b.score - a.score);
-      const lowTop  = lowSorted.slice(0,10).map(x=>x.z);
-      const highTop = highSorted.slice(0,10).map(x=>x.z);
+      let lowTop  = lowSorted.slice(0,10).map(x => x.z);
+      let highTop = highSorted.slice(0,10).map(x => x.z);
+      const remFH = candHot.map(x=>x.z).filter(z => !lowTop.includes(z) && !highTop.includes(z));
+      while (lowTop.length < 10 && remFH.length) { lowTop.push(remFH.shift()); }
+      while (highTop.length < 10 && remFH.length) { highTop.push(remFH.shift()); }
       const numsF = lowTop.concat(highTop).slice(0,20);
-      const setF = {id:'highlow', label:'System F – High/Low Balance', description:'Ausgewogene Kombination aus niedrigen und hohen Zahlen.', type:'highlow', nums: numsF};
-      // System G: Quadrant‑Cluster (Segment mit höchster Summe aus ScoreHot)
-      // Segmentiere Bereich in 4 gleich große Abschnitte
+      const setF = {
+        id: 'highlow',
+        label: 'System F – High/Low Balance',
+        description: 'Ausgewogene Kombination aus niedrigen und hohen Zahlen.',
+        type: 'highlow',
+        nums: numsF
+      };
+      // System G: Quadrant‑Cluster (Segment mit höchstem Score)
+      // Wir unterteilen den Zahlenbereich in vier gleichgroße Quartile. Für
+      // jedes Quartil summieren wir die Hot‑Scores der enthaltenen Zahlen und
+      // wählen das Quartil mit der höchsten Summe. Daraus wählen wir die
+      // besten 20 Zahlen.
       const segSize = Math.floor((B - A + 1) / 4);
       const segments = [];
-      for(let s=0; s<4; s++){
+      for (let s=0; s<4; s++) {
         const segStart = A + s * segSize;
-        const segEnd   = (s === 3) ? B : (segStart + segSize - 1);
+        const segEnd = (s === 3) ? B : (segStart + segSize - 1);
         let sumScore = 0;
-        for(const item of candHot){ if(item.z >= segStart && item.z <= segEnd) sumScore += item.score; }
-        segments.push({start:segStart, end:segEnd, sumScore});
+        for (const item of candHot) {
+          if (item.z >= segStart && item.z <= segEnd) sumScore += item.score;
+        }
+        segments.push({start: segStart, end: segEnd, sumScore});
       }
       segments.sort((a,b) => b.sumScore - a.sumScore);
       const bestSeg = segments[0];
       const segCandidates = candHot.filter(item => item.z >= bestSeg.start && item.z <= bestSeg.end);
-      const numsG = segCandidates.slice(0,20).map(x=>x.z);
-      const setG = {id:'quadrant', label:'System G – Quadrant‑Cluster', description:'Konzentriert sich auf das aktivste Viertel des Bereichs.', type:'quadrant', nums: numsG};
-      // Sammle alle Sets in ursprünglicher Reihenfolge
-      let sets = [setA, setB, setC, setD, setE, setF, setG];
-      // Stelle sicher, dass jede Zahl nur in einem Satz enthalten ist (Deduplicate)
-      sets = deduplicateSets(sets, {hot: candHot.map(x=>x.z), cold: candCold.map(x=>x.z), pattern: candPat.map(x=>x.z), gap: candGap.map(x=>x.z), oddeven: numsE, highlow: numsF, quadrant: numsG});
-      g_candidateSets = sets;
+      const numsG = segCandidates.slice(0,20).map(x => x.z);
+      const setG = {
+        id: 'quadrant',
+        label: 'System G – Quadrant‑Cluster',
+        description: 'Konzentriert sich auf das aktivste Viertel des Bereichs.',
+        type: 'quadrant',
+        nums: numsG
+      };
+      // Füge alle Kandidatensätze zusammen. Doppelungen sind erlaubt, da
+      // jede Strategie unabhängig arbeitet.
+      g_candidateSets = [setA, setB, setC, setD, setE, setF, setG];
       // UI aktualisieren
       $('#scanProg').value = 1;
       $('#scanProg').style.display = 'none';
-      txt($('#scanStatus'), 'Scan abgeschlossen. ' + sets.length + ' Kandidatensätze berechnet.');
+      txt($('#scanStatus'), 'Scan abgeschlossen. ' + g_candidateSets.length + ' Kandidatensätze berechnet.');
       renderCandidateSets();
+
     }
     // Deduplicate: entfernt Zahlen, die bereits in vorangehenden Sätzen vorkommen, und füllt mit weiteren Zahlen aus sortierter Liste
     function deduplicateSets(setList, allSorted){
