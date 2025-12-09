@@ -868,8 +868,10 @@
       // Helper zum Auswählen von Top 20
       const pickTop20 = arr => arr.slice(0,20).map(x => x.z);
       // System A–D Sets
-      const setA = {id:'hotdev',    label:'System A – Hot/Deviation', description:'Betont häufige & positiv abweichende Zahlen.', type:'hot',    nums:pickTop20(candHot)};
-      const setB = {id:'coldrev',   label:'System B – Cold/Rebound',  description:'Betont unterrepräsentierte „Cold“-Zahlen mit Rebound‑Idee.', type:'cold',   nums:pickTop20(candCold)};
+      // Beachte: Die IDs der Sets müssen mit den Schlüsseln in allSorted übereinstimmen, damit das
+      // Deduplicate‑Verfahren zusätzliche Zahlen aus den vollständigen Rankings beziehen kann.
+      const setA = {id:'hot',    label:'System A – Hot/Deviation', description:'Betont häufige & positiv abweichende Zahlen.', type:'hot',    nums:pickTop20(candHot)};
+      const setB = {id:'cold',   label:'System B – Cold/Rebound',  description:'Betont unterrepräsentierte „Cold“-Zahlen mit Rebound‑Idee.', type:'cold',   nums:pickTop20(candCold)};
       const setC = {id:'pattern',   label:'System C – Pattern/Next‑Draw', description:'Betont Follow‑Pattern nach ähnlichen Situationen zur letzten Ziehung.', type:'pattern', nums:pickTop20(candPat)};
       const setD = {id:'gap',       label:'System D – Gap‑Rückkehr', description:'Betont Zahlen mit langen Pausen & typischem Abstands‑Muster (überfällig).', type:'gap', nums:pickTop20(candGap)};
       // System E: Odd/Even Balance (10 Odd + 10 Even)
