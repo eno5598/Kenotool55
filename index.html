@@ -1,33 +1,50 @@
 <!doctype html>
 <!--
-  High-End KENO Analyse-App (2025).
+  KENO High‑End Analyse‑Tool (Version 3, Dezember 2025)
 
-  Features:
-  - Behält Archiv-System inkl. Auto-Download (archiv_keno.zip) und speichert das Archiv im Browser-Speicher,
-    sodass es beim erneuten Laden der Seite sofort verfügbar ist, bis man ein neues Archiv lädt.
-  - Beibehaltung des Keno-Typs und des Zahlenbereichs als zentrale Einstellungen.
-  - Komplexer, einstellbarer Scan über das gesamte Archiv mit intensiver Musteranalyse:
-      Frequenzen, Hot/Cold-Deviation, Streaks, Intervalle, Paare/Triples, Next-Draw-Pattern,
-      Abstandsmuster (Gap-Analyse) und Erkennung von überfälligen Zahlen mit typischen Abständen.
-  - Berechnung von vier verschiedenen Kandidatensätzen (Systeme A–D), jeweils 20 Zahlen:
-      A: Hot/Deviation (häufige & positiv abweichende Zahlen)
-      B: Cold/Rebound (unterrepräsentierte Zahlen, die zurückkommen könnten)
-      C: Pattern/Next-Draw (Zahlen, die häufig nach ähnlichen Mustern auftauchen)
-      D: Gap‑Rückkehr (Zahlen mit langen Pausen & typischem Abstandsmuster, die „überfällig“ sind)
-  - Aus jedem Satz können Varianten erzeugt werden (getrennt für jeden Satz). Anzahl und Overlap begrenzbar.
-  - Varianten können mit dem gesamten Archiv verglichen werden (Trefferverteilung: z.B. 8/8, 7/8, 6/8 …).
+  Dieses Tool analysiert dein geladenes KENO‑Archiv umfassend und berechnet
+  mehrere Strategien, die auf verschiedenen Heuristiken basieren. Alle
+  Strategien sind rein statistische Annäherungen ohne Gewinngarantie –
+  KENO‑Ziehungen sind zufallsbasiert und werden durch RNG oder physische
+  Mischverfahren bestimmt【820644395070059†L224-L242】. Jede Zahl hat die
+  gleiche Wahrscheinlichkeit zu erscheinen【820644395070059†L224-L243】, auch wenn
+  bestimmte Muster im Archiv erkennbar sind. Die hier angebotenen Systeme
+  dienen lediglich zur Analyse und Inspiration, nicht als sichere
+  Vorhersage.
 
-  Hinweis:
-  - KENO-Ziehungen sind zufallsbasiert. Es gibt KEINE Garantie, dass die vorgeschlagenen Zahlen tatsächlich kommen.
-  - Alle „Wahrscheinlichkeiten“ sind heuristische Schätzungen aus Statistik & Mustern.
-  - Dieses Tool liefert „High‑End‑Analyse“, aber keine Gewinnegarantie.
+  Strategien:
+    * System A – Hot/Deviation: häufige und positiv abweichende Zahlen.
+    * System B – Cold/Rebound: unterrepräsentierte Zahlen mit Rebound‑Idee.
+    * System C – Pattern/Next‑Draw: Folge‑Muster basierend auf ähnlichen
+      Situationen zur letzten Ziehung.
+    * System D – Gap‑Rückkehr: Zahlen mit langen Pausen & typischem
+      Abstands‑Muster (überfällig).
+    * System E – Odd/Even Balance: ausgewogene Kombination aus geraden
+      und ungeraden Zahlen【820644395070059†L143-L149】.
+    * System F – High/Low Balance: ausgewogene Kombination aus niedrigen
+      und hohen Zahlen【820644395070059†L150-L153】.
+    * System G – Quadrant‑Cluster: Konzentration auf das aktivste Viertel
+      des Zahlenbereichs (Cluster‑Strategie).
+
+  Hinweise:
+    • Jede Strategie erstellt einen Kandidatensatz aus 20 Zahlen. Aus
+      diesen Sätzen können Varianten erzeugt werden (Keno‑Typ wählbar).
+    • Variantenvorschläge berücksichtigen Überschneidungslimits und
+      vermeiden vier oder mehr aufeinanderfolgende Zahlen.
+    • Nach der Generierung kann jede Variante mit dem gesamten Archiv
+      verglichen werden, um die historischen Trefferverteilungen zu sehen.
+    • Geladene Archive werden automatisch im LocalStorage gespeichert und
+      beim erneuten Öffnen der Seite wiederhergestellt. Ein „Archiv
+      löschen“‑Button entfernt den Cache.
+
+  Copyright © 2025. Keine kommerzielle Nutzung ohne Genehmigung.
 -->
 <html lang="de">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>KENO High-End Analyse-Tool</title>
-  <!-- JSZip zum Entpacken von ZIP-Archiven im Browser -->
+  <title>KENO High‑End Analyse‑Tool</title>
+  <!-- JSZip zum Entpacken von ZIP‑Archiven im Browser -->
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
   <style>
     :root {
@@ -37,7 +54,7 @@
       --text: #e5e7eb;
       --accent: #22c55e;
       --accent2: #0ea5e9;
-      --danger: #f97373;
+      --danger: #f87171;
       --muted: #9ca3af;
     }
     * { box-sizing: border-box; }
@@ -56,8 +73,11 @@
     .container { max-width: 1200px; margin: 0 auto; }
     .grid {
       display: grid;
-      grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0,1.25fr) minmax(0,1fr);
       gap: 16px;
+    }
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: minmax(0,1fr); }
     }
     .panel {
       background: linear-gradient(145deg, rgba(15,23,42,0.95), rgba(17,24,39,0.98));
@@ -76,14 +96,12 @@
         radial-gradient(circle at 10% 0, rgba(56,189,248,0.12), transparent 60%),
         radial-gradient(circle at 90% 100%, rgba(74,222,128,0.12), transparent 55%);
       mix-blend-mode: screen;
-      opacity: 0.7;
+      opacity: 0.6;
       pointer-events: none;
     }
     .panel > * { position: relative; }
     label { display: block; margin: 6px 0 4px; font-size: 0.9rem; }
-    input[type="number"],
-    input[type="text"],
-    select {
+    input[type="number"], input[type="text"], select {
       width: 100%;
       padding: 7px 9px;
       border-radius: 8px;
@@ -106,10 +124,10 @@
       cursor: pointer;
       font-size: 0.88rem;
       font-weight: 500;
-      transition: background 0.2s, transform 0.15s, box-shadow 0.15s, border-color 0.2s;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.15s;
     }
     button.primary {
-      background: linear-gradient(135deg, #22c55e, #0ea5e9);
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
       border: none;
       color: #02120a;
       box-shadow: 0 8px 22px rgba(45,212,191,0.4);
@@ -152,8 +170,15 @@
     progress::-moz-progress-bar {
       background: linear-gradient(90deg, var(--accent), var(--accent2));
     }
-    .hint { font-size: 0.8rem; color: var(--muted); margin-top: 3px; }
-    .status { font-size: 0.8rem; margin-top: 6px; }
+    .hint {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .status {
+      font-size: 0.8rem;
+      margin-top: 6px;
+    }
     .status.error { color: var(--danger); }
     .pill {
       display: inline-flex;
@@ -164,30 +189,6 @@
       border: 1px solid rgba(148,163,184,0.4);
       font-size: 0.75rem;
       color: var(--muted);
-    }
-    .tag {
-      display: inline-block;
-      padding: 2px 7px;
-      border-radius: 999px;
-      border: 1px solid rgba(148,163,184,0.4);
-      font-size: 0.74rem;
-      margin-right: 4px;
-    }
-    .flex { display: flex; }
-    .flex-between { display: flex; justify-content: space-between; align-items: center; }
-    .flex-wrap { flex-wrap: wrap; }
-    .gap-2 { gap: 8px; }
-    .gap-3 { gap: 12px; }
-    .mt-1 { margin-top: 4px; }
-    .mt-2 { margin-top: 8px; }
-    .mt-3 { margin-top: 12px; }
-    .mt-4 { margin-top: 16px; }
-    .section-title {
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #9ca3af;
-      margin-bottom: 4px;
     }
     .top-group {
       border-radius: 10px;
@@ -246,40 +247,35 @@
       background: rgba(17,24,39,0.9);
       font-weight: 500;
     }
-    @media (max-width: 900px){
-      .grid { grid-template-columns: minmax(0,1fr); }
-    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>KENO High-End Analyse-Tool</h1>
+    <h1>KENO High‑End Analyse‑Tool</h1>
     <div class="hint">
-      Dieses Tool analysiert dein KENO-Archiv statistisch (Hot/Cold, Deviation, Muster,
-      „Next-Draw“-Pattern, Gap/Rückkehr, Paare usw.) und schlägt 4 verschiedene Kandidatensätze à 20 Zahlen vor.
-      Aus jedem Satz kannst du Varianten bauen und mit dem gesamten Archiv vergleichen.
-      <strong>Hinweis:</strong> KENO bleibt ein Zufallsspiel – keine Gewinngarantie.
+      Dieses Tool analysiert dein KENO‑Archiv (Hot/Cold, Deviation, Muster,
+      „Next‑Draw“, Gap‑Rückkehr, Odd/Even‑Balance, High/Low‑Balance,
+      Quadrant‑Cluster) und erstellt für jede Strategie einen Kandidatensatz aus
+      20 Zahlen. Aus diesen Sätzen kannst du Varianten erstellen und mit dem
+      gesamten Archiv vergleichen. <strong>Hinweis:</strong> KENO bleibt ein
+      Zufallsspiel【820644395070059†L224-L243】 – keine Gewinngarantie.
     </div>
-
     <div class="grid mt-3">
-      <!-- LINKS: Archiv + Einstellungen + Scan -->
+      <!-- Linke Seite: Archiv & Einstellungen & Analyse -->
       <div class="col-left">
-        <!-- 1. Archiv laden -->
+        <!-- Archiv laden -->
         <div class="panel">
           <div class="section-title">Archiv</div>
           <h2>Archiv laden</h2>
           <label for="file">CSV/TXT/ZIP auswählen</label>
           <input type="file" id="file" accept=".csv,.txt,.zip,text/csv,application/zip,application/octet-stream,text/plain">
           <div id="fileStatus" class="hint mt-1">Kein Archiv geladen.</div>
-
           <div class="mt-2 flex gap-2 flex-wrap">
             <button id="autoLoad" class="secondary">⬇️ Offizielles Archiv automatisch laden</button>
             <label class="hint" style="display:inline-flex; align-items:center; gap:4px;">
-              <input type="checkbox" id="autoloadOnStart">
-              beim Start laden
+              <input type="checkbox" id="autoloadOnStart"> beim Start laden
             </label>
           </div>
-
           <div class="mt-2 flex gap-2 flex-wrap">
             <div style="flex:1 1 160px; min-width:0;">
               <label for="customUrl">Alternative URL (optional)</label>
@@ -290,31 +286,30 @@
               <input type="text" id="customProxy" placeholder="https://corsproxy.io/?">
             </div>
           </div>
-
           <div class="mt-2">
             <progress id="dlProg" value="0" max="1" style="display:none"></progress>
             <div id="loadStatus" class="hint"></div>
           </div>
+          <div class="mt-2 flex gap-2 flex-wrap">
+            <button id="clearCache" class="danger">🗑️ Archiv löschen</button>
+          </div>
         </div>
-
-        <!-- 2. Einstellungen -->
+        <!-- Einstellungen -->
         <div class="panel mt-3">
-          <div class="section-title">Grund-Setup</div>
+          <div class="section-title">Grund‑Setup</div>
           <h2>Einstellungen</h2>
-
-          <label for="kenoType">Keno-Typ (Anzahl Zahlen pro Tipp)</label>
+          <label for="kenoType">Keno‑Typ (Anzahl Zahlen pro Tipp)</label>
           <select id="kenoType">
-            <option value="2">Typ 2</option>
-            <option value="3">Typ 3</option>
-            <option value="4">Typ 4</option>
-            <option value="5">Typ 5</option>
-            <option value="6" selected>Typ 6</option>
-            <option value="7">Typ 7</option>
-            <option value="8">Typ 8</option>
-            <option value="9">Typ 9</option>
-            <option value="10">Typ 10</option>
+            <option value="2">Typ 2</option>
+            <option value="3">Typ 3</option>
+            <option value="4">Typ 4</option>
+            <option value="5">Typ 5</option>
+            <option value="6" selected>Typ 6</option>
+            <option value="7">Typ 7</option>
+            <option value="8">Typ 8</option>
+            <option value="9">Typ 9</option>
+            <option value="10">Typ 10</option>
           </select>
-
           <div class="flex gap-3 mt-2 flex-wrap">
             <div style="flex:1 1 120px;">
               <label for="rangeFrom">Zahlenbereich von</label>
@@ -325,144 +320,130 @@
               <input type="number" id="rangeTo" value="70" min="1" max="200">
             </div>
           </div>
-
           <div class="mt-2 flex gap-3 flex-wrap">
             <div style="flex:1 1 120px;">
-              <label for="numVariants">Varianten pro Kandidatensatz</label>
+              <label for="numVariants">Varianten pro Satz</label>
               <input type="number" id="numVariants" value="10" min="1" max="200">
             </div>
             <div style="flex:1 1 120px;">
-              <label for="overlapLimit">Max. Overlap zw. Varianten</label>
+              <label for="overlapLimit">Max. Overlap (zwischen Varianten)</label>
               <input type="number" id="overlapLimit" value="0" min="0" max="20">
-              <div class="hint">0 = keine Begrenzung</div>
+              <div class="hint">0 = keine Begrenzung</div>
             </div>
           </div>
-
           <div class="mt-2 flex gap-3 flex-wrap">
             <div style="flex:1 1 120px;">
-              <label for="scanRounds">Scan-Intensität (Runden)</label>
-              <input type="number" id="scanRounds" value="3" min="1" max="50">
-              <div class="hint">Mehr Runden = längerer &amp; tiefer Analyse-Scan.</div>
+              <label for="scanRounds">Scan‑Intensität (Runden)</label>
+              <input type="number" id="scanRounds" value="3" min="1" max="100">
+              <div class="hint">Mehr Runden = längerer &amp; tiefer Analyse‑Scan.</div>
             </div>
             <div style="flex:1 1 120px;">
               <label for="recentWindow">Fenster „letzte Ziehungen“</label>
               <input type="number" id="recentWindow" value="100" min="10" max="1000">
-              <div class="hint">Für Hot/Cold-Auswertung.</div>
+              <div class="hint">Für Hot/Cold‑Auswertung.</div>
             </div>
           </div>
-
           <div class="mt-2 flex gap-3 flex-wrap">
             <div style="flex:1 1 120px;">
-              <label for="similarityOverlap">Ähnlichkeits-Schwelle (Overlap)</label>
+              <label for="similarityOverlap">Ähnlichkeits‑Schwelle (Overlap)</label>
               <input type="number" id="similarityOverlap" value="8" min="1" max="20">
-              <div class="hint">
-                Für „Next-Draw“-Pattern: Ziehungen mit ähnlichem Overlap zur letzten
-                Ziehung werden stärker gewichtet.
-              </div>
+              <div class="hint">Für „Next‑Draw“: Ziehungen mit ähnlichem Overlap zur letzten werden stärker gewichtet.</div>
             </div>
           </div>
         </div>
-
-        <!-- 3. Analyse & Scan -->
+        <!-- Analyse -->
         <div class="panel mt-3">
           <div class="section-title">Analyse</div>
-          <h2>Scan &amp; Kandidaten-Berechnung</h2>
-
+          <h2>Scan &amp; Kandidaten</h2>
           <div class="flex gap-2 flex-wrap">
             <button id="scanBtn" class="primary">🧠 Archiv scannen</button>
-            <span class="pill">
-              <span>Modi:</span> Hot/Deviation · Cold/Rebound · Pattern-Follow · Gap‑Rückkehr
-            </span>
+            <span class="pill">Modi: Hot/Cold · Pattern · Gap‑Rückkehr · Odd/Even · High/Low · Quadrant</span>
           </div>
-
           <progress id="scanProg" value="0" max="1" style="display:none; margin-top:10px;"></progress>
           <div id="scanStatus" class="status"></div>
-
           <div class="hint mt-2">
-            Der Scan läuft in Chunks (asynchron), sodass der Browser nicht einfriert.
-            Je nach Archivgröße und Scan-Intensität kann das spürbar dauern.
+            Der Scan läuft in Batches (asynchron), damit der Browser nicht einfriert. Je nach Archivgröße und Intensität kann der Scan einige Zeit dauern.
           </div>
-
           <div id="candidatesSection" style="display:none;" class="mt-3">
-            <h3>4 x 20 Kandidaten-Sätze</h3>
+            <h3>Kandidatensätze</h3>
             <div class="hint">
-              Jeder Satz basiert auf einer anderen Strategie. Du kannst einen oder mehrere
-              Sätze für die Varianten-Erzeugung auswählen.
+              Jeder Satz basiert auf einer anderen Strategie. Du kannst einen oder mehrere Sätze für die Variantenerzeugung auswählen.
             </div>
-
             <div id="candGroups"></div>
           </div>
         </div>
       </div>
-
-      <!-- RECHTS: Varianten + Vergleich -->
+      <!-- Rechte Seite: Varianten & Vergleich -->
       <div class="col-right">
         <!-- Varianten -->
         <div class="panel">
           <div class="section-title">Varianten</div>
-          <h2>Varianten aus Kandidaten erzeugen</h2>
-
+          <h2>Varianten aus Kandidaten</h2>
           <div class="flex gap-2 flex-wrap">
             <button id="genBtn" class="primary">🎲 Varianten erzeugen</button>
             <button id="clearVarBtn" class="secondary">🧹 Varianten leeren</button>
           </div>
           <div id="varStatus" class="status"></div>
-
           <div id="varBlocks" class="mt-3"></div>
         </div>
-
-        <!-- Varianten vs. Archiv -->
+        <!-- Vergleich -->
         <div class="panel mt-3">
           <div class="section-title">Historischer Vergleich</div>
-          <h2>Varianten mit Archiv vergleichen</h2>
-
+          <h2>Varianten vs. Archiv</h2>
           <div class="flex gap-2 flex-wrap">
-            <button id="compareBtn" class="primary">📊 Treffer-Verteilung berechnen</button>
+            <button id="compareBtn" class="primary">📊 Treffer‑Verteilung berechnen</button>
           </div>
           <progress id="compareProg" value="0" max="1" style="display:none; margin-top:10px;"></progress>
           <div id="compareStatus" class="status"></div>
-
           <div id="compareResults" class="mt-2"></div>
-
           <div class="hint mt-2">
-            Hier siehst du für jede Variante, wie oft sie im Archiv 0…S Treffer hatte
-            (z.B. bei Typ 8 → wie oft 8/8, 7/8, 6/8 usw.). Das zeigt nur, wie sich der Tipp
-            HISTORISCH verhalten hätte – keine Garantie für die Zukunft.
+            Hier siehst du, wie sich jede Variante historisch verhalten hätte – wie oft 0…S Treffer im Archiv erzielt wurden. Das dient nur der Rückschau und ist keine Garantie für die Zukunft.
           </div>
         </div>
       </div>
     </div>
   </div>
-
   <script>
   (function(){
     'use strict';
-
-    // Kurz-Helpers
-    const $  = s => document.querySelector(s);
+    // Helper Kurzformen
+    const $ = s => document.querySelector(s);
     const el = (tag, cls) => { const x = document.createElement(tag); if(cls) x.className = cls; return x; };
-    const txt = (node, s) => node && (node.textContent = s);
+    const txt = (node, s) => { if(node) node.textContent = s; };
 
-    const OFFICIAL_ZIP_URL =
-      "https://www.lotto-bayern.de/static/gamebroker_2/de/download_files/archiv_keno.zip";
+    const OFFICIAL_ZIP_URL = 'https://www.lotto-bayern.de/static/gamebroker_2/de/download_files/archiv_keno.zip';
 
     // Globale Daten
-    let g_draws = [];           // Liste von Ziehungen (Array von Zahlen)
-    let g_drawSize = 0;         // typischerweise 20 (erkannt aus Archiv)
-    let g_scanData = null;      // alle berechneten Statistiken
-    let g_candidateSets = [];   // [{id,label,type,nums:[...], meta:{...}}, ...]
-    let g_variantsBySet = {};   // id -> [ {numbers:[...], hist:null|{k->count}} ]
+    let g_draws = [];       // Liste der Ziehungen (Array von Arrays)
+    let g_drawSize = 0;     // typischerweise 20 (wird dynamisch erkannt)
+    let g_candidateSets = [];// Liste der Strategien mit Zahlen
+    let g_variantsBySet = {}; // set.id -> Array von Varianten {numbers:[], hist:null}
 
-    // ==== ARCHIV-LADEN (Upload) ====
+    // Laden aus LocalStorage bei Start
+    const stored = localStorage.getItem('keno_draws');
+    if(stored){
+      try{
+        const parsed = JSON.parse(stored);
+        if(parsed.draws && Array.isArray(parsed.draws) && parsed.draws.length){
+          g_draws = parsed.draws;
+          g_drawSize = g_draws[0].length;
+          txt($('#fileStatus'), `${g_draws.length} Ziehungen geladen (je ${g_drawSize} Zahlen) – aus Cache`);
+        }
+      }catch(e){
+        console.warn('Cache konnte nicht geladen werden', e);
+      }
+    }
+
+    // ARCHIV: Datei auswählen
     $('#file').addEventListener('change', async ev => {
       const file = ev.target.files[0];
-      if(!file){ txt($('#fileStatus'), 'Keine Datei ausgewählt.'); return; }
+      if(!file){ txt($('#fileStatus'),'Keine Datei ausgewählt.'); return; }
       try{
         if(/\.zip$/i.test(file.name)){
           await loadZipFile(file);
-        } else {
+        }else{
           const raw = await file.text();
-          parseArchive(raw);
+          parseArchive(raw, file.name);
         }
       }catch(e){
         console.error(e);
@@ -470,109 +451,36 @@
       }
     });
 
-    // ZIP-Datei entpacken
+    // ARCHIV: ZIP-Datei entpacken
     async function loadZipFile(file){
       txt($('#fileStatus'), 'ZIP wird entpackt …');
       const data = await file.arrayBuffer();
-      const zip  = await JSZip.loadAsync(data);
+      const zip = await JSZip.loadAsync(data);
       let best = null;
       zip.forEach((path, entry) => {
         const p = path.toLowerCase();
         if(entry.dir) return;
         if(p.endsWith('.csv') || p.endsWith('.txt')){
-          const score =
-            (p.includes('keno') ? 3 : 0) +
-            (p.includes('archiv') ? 2 : 0) +
-            (p.endsWith('.csv') ? 1 : 0);
+          const score = (p.includes('keno') ? 3 : 0) + (p.includes('archiv') ? 2 : 0) + (p.endsWith('.csv') ? 1 : 0);
           if(!best || score > best.score) best = {entry, score};
         }
       });
-      if(!best){
-        txt($('#fileStatus'), 'Keine CSV/TXT im ZIP gefunden.');
-        return;
-      }
+      if(!best){ txt($('#fileStatus'), 'Keine CSV/TXT im ZIP gefunden.'); return; }
       const raw = await best.entry.async('string');
-      parseArchive(raw);
+      parseArchive(raw, file.name);
     }
 
-    // CSV/TXT parsen → g_draws & g_drawSize
-    function parseArchive(raw){
-      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const draws = [];
-      const lensCount = {};
-      for(const ln of lines){
-        if(/zahl\s*1/i.test(ln)) continue;  // Kopfzeile(n) ignorieren
-        const nums = ln.match(/\d+/g);
-        if(!nums || nums.length < 5) continue; // sehr kurze Zeilen ignorieren
-        const arr = nums.map(x => parseInt(x,10));
-        draws.push(arr);
-        const len = arr.length;
-        lensCount[len] = (lensCount[len]||0) + 1;
-      }
-      if(draws.length === 0){
-        txt($('#fileStatus'), 'Keine gültigen Ziehungen gefunden.');
-        return;
-      }
-      // Bestimme die häufigste Länge als g_drawSize
-      let modeLen = null;
-      let modeCount = 0;
-      for(const k in lensCount){
-        const c = lensCount[k];
-        if(c > modeCount){ modeCount = c; modeLen = parseInt(k,10); }
-      }
-      const filtered = draws.filter(arr => arr.length === modeLen);
-      g_draws    = filtered;
-      g_drawSize = modeLen;
-      txt($('#fileStatus'), `${filtered.length} Ziehungen geladen (je ${g_drawSize} Zahlen).`);
-
-      // Speichere im LocalStorage
-      try{
-        localStorage.setItem('kenoArchive', JSON.stringify({ draws: g_draws, size: g_drawSize }));
-      }catch(e){ console.warn('Kann Archiv nicht speichern:', e); }
-
-      // Reset Analyse & UI
-      g_scanData      = null;
-      g_candidateSets = [];
-      g_variantsBySet = {};
-      $('#scanStatus').textContent = '';
-      $('#scanStatus').classList.remove('error');
-      $('#scanProg').style.display = 'none';
-      $('#candidatesSection').style.display = 'none';
-      $('#candGroups').innerHTML = '';
-      $('#varStatus').textContent = '';
-      $('#varBlocks').innerHTML = '';
-      $('#compareStatus').textContent = '';
-      $('#compareResults').innerHTML = '';
-    }
-
-    // ==== AUTO-DOWNLOAD MIT PROGRESS ====
+    // ARCHIV: Auto‑Download
     $('#autoLoad').addEventListener('click', () => {
-      autoLoadOfficialArchive().catch(console.error);
+      autoLoadOfficialArchive().catch(err => console.error(err));
     });
-
     window.addEventListener('load', () => {
-      // Archiv aus LocalStorage laden, falls vorhanden
-      try{
-        const saved = localStorage.getItem('kenoArchive');
-        if(saved){
-          const data = JSON.parse(saved);
-          if(data && Array.isArray(data.draws) && data.size){
-            g_draws    = data.draws;
-            g_drawSize = data.size;
-            txt($('#fileStatus'), `${g_draws.length} Ziehungen geladen (je ${g_drawSize} Zahlen) (aus Speicher).`);
-          }
-        }
-      }catch(e){ console.warn('Kann gespeichertes Archiv nicht laden:', e); }
-      // auto-load via remote if eingestellt und noch kein Archiv vorhanden
-      if(g_draws.length === 0 && $('#autoloadOnStart').checked){
-        autoLoadOfficialArchive().catch(console.error);
-      }
+      if($('#autoloadOnStart').checked){ autoLoadOfficialArchive().catch(err => console.error(err)); }
     });
-
     async function fetchWithProgress(url, onProgress){
       const res = await fetch(url);
       if(!res.ok) throw new Error('HTTP ' + res.status + ' bei ' + url);
-      const total  = parseInt(res.headers.get('Content-Length')) || 0;
+      const total = parseInt(res.headers.get('Content-Length')) || 0;
       const reader = res.body.getReader();
       const chunks = [];
       let received = 0;
@@ -584,9 +492,8 @@
         if(onProgress) onProgress({received, total});
       }
       const blob = new Blob(chunks);
-      return { arrayBuffer: await blob.arrayBuffer(), total: total || received, res };
+      return { arrayBuffer: await blob.arrayBuffer(), total: total || received };
     }
-
     async function attemptDownload(urls, onProgress){
       let lastError = null;
       for(const url of urls){
@@ -594,112 +501,173 @@
           const result = await fetchWithProgress(url, onProgress);
           result.usedUrl = url;
           return result;
-        }catch(e){
-          lastError = e;
-        }
+        }catch(e){ lastError = e; }
       }
       throw lastError || new Error('Download fehlgeschlagen');
     }
-
     async function autoLoadOfficialArchive(){
       const prog = $('#dlProg');
       const st   = $('#loadStatus');
       prog.style.display = '';
       prog.value = 0; prog.max = 1;
       txt(st, 'Verbinde zur Quelle …');
-
       try{
         const custom = $('#customUrl').value.trim();
-        const base   = custom || OFFICIAL_ZIP_URL;
-        const proxy  = $('#customProxy').value.trim();
-        const candidates = [];
-        if(proxy) candidates.push(proxy + base);
-        candidates.push(base);
-        candidates.push('https://corsproxy.io/?' + encodeURIComponent(base));
-        candidates.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(base));
-        candidates.push('https://thingproxy.freeboard.io/fetch/' + base);
-
-        const { arrayBuffer } = await attemptDownload(candidates, ({received, total}) => {
-          if(total > 0){
-            prog.value = received / total;
-            txt(st, `Lade Archiv … ${(100*received/total).toFixed(0)}%`);
-          } else {
-            // falls Content-Length unbekannt, langsam erhöhen
-            prog.value = Math.min(1, prog.value + 0.02);
-            txt(st, `Lade Archiv … ${received.toLocaleString()} Bytes`);
-          }
+        const base = custom || OFFICIAL_ZIP_URL;
+        const proxy = $('#customProxy').value.trim();
+        const urls = [];
+        if(proxy) urls.push(proxy + base);
+        urls.push(base);
+        urls.push('https://corsproxy.io/?' + encodeURIComponent(base));
+        urls.push('https://api.allorigins.win/raw?url=' + encodeURIComponent(base));
+        urls.push('https://thingproxy.freeboard.io/fetch/' + base);
+        const {arrayBuffer} = await attemptDownload(urls, ({received,total}) => {
+          if(total > 0){ prog.value = received/total; txt(st, `Lade Archiv … ${(100*received/total).toFixed(0)}%`); }
+          else { prog.value = Math.min(1, prog.value + 0.02); txt(st, `Lade Archiv … ${received.toLocaleString()} Bytes`); }
         });
-
         txt(st, 'Entpacke ZIP …');
         const zip = await JSZip.loadAsync(arrayBuffer);
-
         const cand = [];
-        zip.forEach((path, entry) => {
+        zip.forEach((path,entry) => {
           const p = path.toLowerCase();
           if(entry.dir) return;
           if(p.endsWith('.csv') || p.endsWith('.txt')){
-            const score =
-              (p.includes('keno') ? 3 : 0) +
-              (p.includes('archiv') ? 2 : 0) +
-              (p.endsWith('.csv') ? 1 : 0);
-            cand.push({path, entry, score, size: entry._dataUncompressedSize || 0});
+            const score = (p.includes('keno')?3:0) + (p.includes('archiv')?2:0) + (p.endsWith('.csv')?1:0);
+            cand.push({path,entry,score,size: entry._dataUncompressedSize||0});
           }
         });
         if(!cand.length) throw new Error('Keine CSV/TXT im ZIP gefunden.');
         cand.sort((a,b)=> b.score - a.score || b.size - a.size);
         const best = cand[0];
         const raw  = await best.entry.async('string');
-        parseArchive(raw);
-        txt(st, 'Archiv geladen (Auto-Download).');
+        parseArchive(raw, 'auto');
+        txt(st, 'Archiv geladen.');
       }catch(err){
         console.error(err);
-        txt(st, 'Fehler beim Download: ' + err.message);
+        txt(st,'Fehler beim Download: ' + err.message);
       }finally{
         prog.style.display = 'none';
       }
     }
 
-    // ==== SCAN & ANALYSE ====
-    $('#scanBtn').addEventListener('click', () => {
-      scanArchive().catch(console.error);
+    // ARCHIV: Parser
+    function parseArchive(raw, sourceName){
+      // Split lines, trim, ignore empty
+      const lines = raw.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if(!lines.length){ txt($('#fileStatus'),'Leere Datei.'); return; }
+      const candidateRows = [];
+      const lengthCount = {};
+      for(const ln of lines){
+        // skip header lines containing 'zahl' or similar
+        if(/zahl\s*1/i.test(ln) || /zahl1/i.test(ln)) continue;
+        const nums = ln.match(/\d+/g);
+        if(!nums) continue;
+        lengthCount[nums.length] = (lengthCount[nums.length]||0) + 1;
+        candidateRows.push(nums);
+      }
+      // Determine the most common length (≥10) and default to 20 if available.
+      let typicalLength = 0;
+      let maxCount = 0;
+      for(const lenStr in lengthCount){
+        const len = parseInt(lenStr,10);
+        const cnt = lengthCount[lenStr];
+        if(cnt > maxCount && len >= 10){
+          maxCount = cnt;
+          typicalLength = len;
+        }
+      }
+      // Many KENO‑Archive enthalten zusätzliche Spalten (z.B. Ziehungsnummer, Gewinnklasse).
+      // In solchen Fällen interessieren uns nur die ersten 20 Zahlen – die eigentlichen gezogenen Nummern.
+      // Wenn mindestens 20 Zahlen pro Zeile vorhanden sind, wird 20 als „typische“ Länge verwendet.
+      // Wenn Zeilen mit 20 Zahlen vorhanden sind, oder die ermittelte typische Länge > 20,
+      // beschränken wir die Ziehungsgröße auf 20 (Keno zieht immer 20 Zahlen).
+      if(lengthCount[20]){
+        typicalLength = 20;
+      } else if(typicalLength > 20){
+        typicalLength = 20;
+      }
+      if(!typicalLength){
+        txt($('#fileStatus'), 'Konnte typische Ziehungsgröße nicht bestimmen.');
+        return;
+      }
+      // Build draws: nimm die ersten typicalLength Zahlen der Zeile, auch wenn die Zeile länger ist
+      const draws = [];
+      for(const arr of candidateRows){
+        if(arr.length >= typicalLength){
+          const row = arr.slice(0, typicalLength).map(x => parseInt(x,10));
+          draws.push(row);
+        }
+      }
+      if(!draws.length){
+        txt($('#fileStatus'),'Keine gültigen Ziehungen gefunden.');
+        return;
+      }
+      g_draws = draws;
+      g_drawSize = typicalLength;
+      // Meldung stets mit der tatsächlich übernommenen Zahlengröße (typicalLength)
+      txt($('#fileStatus'), `${draws.length} Ziehungen geladen (je ${typicalLength} Zahlen).`);
+      // Persistiere in LocalStorage
+      try{
+        localStorage.setItem('keno_draws', JSON.stringify({draws}));
+      }catch(e){ console.warn('Could not save to LocalStorage', e); }
+      // Analyse‑State zurücksetzen
+      resetAnalysisState();
+    }
+
+    // Clear stored archive
+    $('#clearCache').addEventListener('click', () => {
+      localStorage.removeItem('keno_draws');
+      g_draws = [];
+      g_drawSize = 0;
+      g_candidateSets = [];
+      g_variantsBySet = {};
+      txt($('#fileStatus'),'Cache gelöscht.');
+      txt($('#scanStatus'),'');
+      $('#scanStatus').classList.remove('error');
+      $('#candidatesSection').style.display = 'none';
+      $('#candGroups').innerHTML = '';
+      $('#varBlocks').innerHTML = '';
+      $('#varStatus').textContent = '';
+      $('#compareResults').innerHTML = '';
+      $('#compareStatus').textContent = '';
     });
 
+    // Reset state when new archive loaded
+    function resetAnalysisState(){
+      g_candidateSets = [];
+      g_variantsBySet = {};
+      $('#scanStatus').textContent = '';
+      $('#scanStatus').classList.remove('error');
+      $('#candidatesSection').style.display = 'none';
+      $('#candGroups').innerHTML = '';
+      $('#varBlocks').innerHTML = '';
+      $('#varStatus').textContent = '';
+      $('#compareResults').innerHTML = '';
+      $('#compareStatus').textContent = '';
+    }
+
+    // SCAN button
+    $('#scanBtn').addEventListener('click', () => {
+      scanArchive().catch(err => console.error(err));
+    });
+
+    // Analyse & Mustererkennung
     async function scanArchive(){
-      if(!g_draws || !g_draws.length){
-        txt($('#scanStatus'), 'Bitte zuerst ein Archiv laden.');
-        $('#scanStatus').classList.add('error');
-        return;
-      }
+      if(!g_draws || !g_draws.length){ txt($('#scanStatus'),'Bitte zuerst ein Archiv laden.'); $('#scanStatus').classList.add('error'); return; }
       const A = parseInt($('#rangeFrom').value,10);
       const B = parseInt($('#rangeTo').value,10);
-      if(!Number.isInteger(A) || !Number.isInteger(B) || A >= B){
-        txt($('#scanStatus'), 'Ungültiger Zahlenbereich.');
-        $('#scanStatus').classList.add('error');
-        return;
-      }
-      const scanRounds     = Math.max(1, parseInt($('#scanRounds').value,10) || 1);
-      const recentWindow   = Math.max(10, parseInt($('#recentWindow').value,10) || 100);
-      const similarityOv   = Math.max(1, parseInt($('#similarityOverlap').value,10) || 8);
-
+      if(!Number.isInteger(A) || !Number.isInteger(B) || A >= B){ txt($('#scanStatus'),'Ungültiger Zahlenbereich.'); $('#scanStatus').classList.add('error'); return; }
+      const scanRounds   = Math.max(1, parseInt($('#scanRounds').value,10) || 1);
+      const recentWindow = Math.max(10, parseInt($('#recentWindow').value,10) || 100);
+      const similarityOv = Math.max(1, parseInt($('#similarityOverlap').value,10) || 8);
       $('#scanStatus').classList.remove('error');
       txt($('#scanStatus'), 'Initialisiere Scan …');
       $('#scanProg').style.display = '';
       $('#scanProg').value = 0;
-
       const totalDraws = g_draws.length;
-      // Schätze die durchschnittliche Anzahl an Zahlen im Bereich pro Ziehung
-      let sumLen = 0, countLen=0;
-      const maxSample = Math.min(200, totalDraws);
-      for(let i=0; i<maxSample; i++){
-        const arr = g_draws[i].filter(v => v>=A && v<=B);
-        sumLen += arr.length;
-        countLen++;
-      }
-      const g_drawSizeRange = countLen ? Math.round(sumLen / countLen) : g_drawSize;
-
-      // Initialisiere Datenstrukturen
+      // Initialisieren der Statistiken
       const statsNumber = {};
-      for(let z = A; z <= B; z++){
+      for(let z=A; z<=B; z++){
         statsNumber[z] = {
           freq: 0,
           gaps: [],
@@ -708,60 +676,41 @@
           lastSeen: -1,
           pairScore: 0,
           followFreq: 0,
-          dev: 0
+          dev: 0,
+          gapScore: 0
         };
       }
-      const pairCounts   = new Map();
-      const overlapHist  = {};
-      const lastIdx      = totalDraws - 1;
+      const pairCounts = new Map();
+      const lastIdx = totalDraws - 1;
       const lastDrawSortedFull = g_draws[lastIdx].slice().sort((a,b)=>a-b);
-      let prevSorted     = null;
-
-      // Basis-Scan in Chunks
+      let prevSorted = null;
       const chunkSize = 200;
-      for(let start = 0; start < totalDraws; start += chunkSize){
+      // Basisscan
+      for(let start=0; start<totalDraws; start += chunkSize){
         const end = Math.min(totalDraws, start + chunkSize);
-        for(let i = start; i < end; i++){
-          const draw   = g_draws[i];
+        for(let i=start; i<end; i++){
+          const draw = g_draws[i];
+          // gefiltert & sortiert im Bereich [A,B]
           const sorted = draw.filter(v => v>=A && v<=B).sort((a,b)=>a-b);
-
-          // Zahlen-Stats
+          // Frequenzen, Streaks, Gaps
           for(const v of sorted){
             const st = statsNumber[v];
             st.freq++;
-            if(st.lastSeen === i-1){
-              st.currentStreak++;
-            }else{
-              if(st.currentStreak > 0) st.streaks.push(st.currentStreak);
-              st.currentStreak = 1;
-            }
-            if(st.lastSeen >= 0){
-              st.gaps.push(i - st.lastSeen);
-            }
+            if(st.lastSeen === i-1) st.currentStreak++; else { if(st.currentStreak>0) st.streaks.push(st.currentStreak); st.currentStreak = 1; }
+            if(st.lastSeen >= 0) st.gaps.push(i - st.lastSeen);
             st.lastSeen = i;
           }
-
-          // Paare/Triples (vereinfachte Double-Count)
+          // Paare (vereinfachte Paargewichtung)
           const n = sorted.length;
           for(let a=0; a<n; a++){
             const vA = sorted[a];
             for(let b=a+1; b<n; b++){
               const vB = sorted[b];
-              const key2 = vA + '-' + vB;
-              pairCounts.set(key2, (pairCounts.get(key2)||0) + 1);
+              const key = vA + '-' + vB;
+              pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
               statsNumber[vA].pairScore++;
               statsNumber[vB].pairScore++;
             }
-          }
-
-          // Overlap zur vorherigen Ziehung
-          if(prevSorted){
-            let ov=0, p=0, q=0;
-            while(p<prevSorted.length && q<sorted.length){
-              if(prevSorted[p] === sorted[q]){ ov++; p++; q++; }
-              else if(prevSorted[p] < sorted[q]) p++; else q++;
-            }
-            overlapHist[ov] = (overlapHist[ov]||0)+1;
           }
           prevSorted = sorted;
         }
@@ -769,98 +718,96 @@
         txt($('#scanStatus'), `Basisscan … ${Math.floor(100*end/totalDraws)}%`);
         await new Promise(r=>setTimeout(r,0));
       }
-
       // Streaks abschließen
-      for(let z = A; z <= B; z++){
+      for(let z=A; z<=B; z++){
         const st = statsNumber[z];
         if(st.currentStreak>0) st.streaks.push(st.currentStreak);
       }
-
-      // Hot/Cold im letzten Fenster
+      // Hot/Cold: letzte N Ziehungen
       const freqRecent = {};
-      for(let z = A; z <= B; z++) freqRecent[z]=0;
+      for(let z=A; z<=B; z++) freqRecent[z] = 0;
       const startRecent = Math.max(0, totalDraws - recentWindow);
-      for(let i = startRecent; i < totalDraws; i++){
+      for(let i=startRecent; i<totalDraws; i++){
         for(const v of g_draws[i]){
           if(v>=A && v<=B) freqRecent[v]++;
         }
       }
-
-      // Erwartete Häufigkeit (Coarse-Grained Deviation-System)
+      // Erwartete Frequenz basierend auf realer DrawSize in Bereich
+      // Wir berechnen: erwartete Treffer pro Zahl = (totalDraws * avgZahlenImBereich pro Ziehung) / poolSize
+      let totalNumbersInRange = 0;
+      for(const draw of g_draws){
+        for(const v of draw) if(v>=A && v<=B) totalNumbersInRange++; }
+      const avgInRange = totalNumbersInRange / totalDraws;
       const poolSize = (B - A + 1);
-      const expected = (totalDraws * g_drawSizeRange) / poolSize;
-      for(let z = A; z <= B; z++){
-        statsNumber[z].dev = statsNumber[z].freq - expected;
+      const expectedFreq = (totalDraws * avgInRange) / poolSize;
+      for(let z=A; z<=B; z++){
+        statsNumber[z].dev = statsNumber[z].freq - expectedFreq;
       }
-
-      // Next-Draw-Pattern: wie verhalten sich „ähnliche“ Situationen zur letzten Ziehung?
+      // Next‑Draw‑Pattern (Follow): ähnliche Overlaps zur letzten Ziehung
       const lastSet = new Set(lastDrawSortedFull.filter(v => v>=A && v<=B));
       const followFreq = {};
-      for(let z=A; z<=B; z++) followFreq[z]=0;
-
-      for(let i = 0; i < lastIdx; i++){
+      for(let z=A; z<=B; z++) followFreq[z] = 0;
+      for(let i=0; i<lastIdx; i++){
         const cur = g_draws[i].filter(v => v>=A && v<=B).sort((a,b)=>a-b);
         const next = g_draws[i+1].filter(v => v>=A && v<=B);
-        // Overlap zwischen cur und letzter Ziehung
-        let ov = 0;
-        let p=0, q=0;
+        // Overlap von cur mit last
+        let ov=0, p=0, q=0;
         const lastArr = Array.from(lastSet).sort((a,b)=>a-b);
         while(p<cur.length && q<lastArr.length){
-          if(cur[p] === lastArr[q]){ ov++; p++; q++; }
+          if(cur[p] === lastArr[q]) { ov++; p++; q++; }
           else if(cur[p] < lastArr[q]) p++; else q++;
         }
         if(ov >= similarityOv){
-          // diese Situation ist „ähnlich“ zur aktuellen letzten Ziehung
-          for(const v of next){
-            if(v>=A && v<=B) followFreq[v]++;
-          }
+          for(const v of next){ if(v>=A && v<=B) followFreq[v]++; }
         }
       }
-
-      // Scan-Intensität: zusätzliche Durchläufe (Verstärkung/Glättung)
-      for(let round = 1; round < scanRounds; round++){
-        txt($('#scanStatus'), `Vertiefe Muster (Runde ${round+1}/${scanRounds}) …`);
-        const factor = 1 + round * 0.1;
-        for(let z = A; z <= B; z++){
+      // Gap‑Rückkehr: berechne pro Zahl durchschnittlichen Abstand und aktuelles Gap
+      for(let z=A; z<=B; z++){
+        const st = statsNumber[z];
+        const gaps = st.gaps;
+        const avgGap = gaps.length ? gaps.reduce((s,x)=>s+x,0)/gaps.length : totalDraws;
+        const recency = (st.lastSeen >= 0) ? (totalDraws - 1 - st.lastSeen) : totalDraws;
+        const diff = recency - avgGap;
+        // positive diff → überfällig; negative diff → kürzlich erschienen
+        st.gapScore = diff;
+      }
+      // Mehrere Scan-Runden (sanftes Glätten / Gewichtung)
+      for(let r=1; r<scanRounds; r++){
+        txt($('#scanStatus'), `Glätte Muster (Runde ${r+1}/${scanRounds}) …`);
+        const factor = 1 + r * 0.1;
+        for(let z=A; z<=B; z++){
           statsNumber[z].dev       *= factor;
+          statsNumber[z].pairScore *= (1 + 0.03 * r);
           followFreq[z]            *= factor;
-          statsNumber[z].pairScore *= (1 + 0.03*round);
+          statsNumber[z].gapScore  *= (1 + 0.05 * r);
         }
-        $('#scanProg').value = 0.9 * (round/scanRounds);
+        $('#scanProg').value = 0.9 * (r / scanRounds);
         await new Promise(r=>setTimeout(r,0));
       }
-
-      // Struktur für spätere Scores
-      const tempStats = {};
+      // Score‑Arrays für Normalisierung
       const arrFreq   = [];
       const arrRecent = [];
-      const arrRecency= [];
+      const arrRecInv = [];
       const arrStreak = [];
       const arrPair   = [];
-      const arrDev    = [];
+      const arrDevPos = [];
+      const arrDevNeg = [];
       const arrFollow = [];
-      const arrRatio  = [];
-
-      for(let z = A; z <= B; z++){
+      const arrGap    = [];
+      const tempStats = {};
+      for(let z=A; z<=B; z++){
         const st = statsNumber[z];
         const recency = (st.lastSeen >= 0) ? (totalDraws - 1 - st.lastSeen) : totalDraws;
-        const avgStreak = st.streaks.length
-          ? st.streaks.reduce((s,x)=>s+x,0) / st.streaks.length
-          : 0;
+        const avgStreak = st.streaks.length ? st.streaks.reduce((s,x)=>s+x,0)/st.streaks.length : 0;
         arrFreq.push(st.freq);
         arrRecent.push(freqRecent[z]);
-        arrRecency.push(recency);
+        arrRecInv.push(recency);
         arrStreak.push(avgStreak);
         arrPair.push(st.pairScore);
-        arrDev.push(st.dev);
+        arrDevPos.push(Math.max(0, st.dev));
+        arrDevNeg.push(Math.max(0, -st.dev));
         arrFollow.push(followFreq[z]);
-
-        // Abstand-Muster: Ratio von aktuellem Gap zu durchschnittlichem Gap
-        const avgGap = st.gaps.length ? (st.gaps.reduce((s,x)=>s+x,0) / st.gaps.length) : totalDraws;
-        const currentGap = (st.lastSeen >= 0) ? ((totalDraws - 1) - st.lastSeen) : totalDraws;
-        const ratio = avgGap > 0 ? (currentGap / avgGap) : 0;
-        arrRatio.push(ratio);
-
+        arrGap.push(st.gapScore);
         tempStats[z] = {
           freq: st.freq,
           freqRecent: freqRecent[z],
@@ -869,430 +816,327 @@
           pairScore: st.pairScore,
           dev: st.dev,
           followFreq: followFreq[z],
-          avgGap,
-          currentGap,
-          ratio,
+          gapScore: st.gapScore,
           scoreHot: 0,
           scoreCold: 0,
-          scorePattern: 0,
-          scoreDue: 0
+          scorePat: 0,
+          scoreGap: 0
         };
       }
-
       function norm(arr, invert=false){
         const min = Math.min(...arr);
         const max = Math.max(...arr);
-        if(max===min) return arr.map(()=>0);
-        if(invert) return arr.map(v => (max - v)/(max - min));
-        return arr.map(v => (v - min)/(max - min));
+        if(max === min) return arr.map(()=>0);
+        if(invert) return arr.map(v => (max - v) / (max - min));
+        return arr.map(v => (v - min) / (max - min));
       }
       const NF      = norm(arrFreq);
       const NR      = norm(arrRecent);
-      const NRecInv = norm(arrRecency,true);
+      const NRecInv = norm(arrRecInv,true); // kleinere Recency = besser
       const NS      = norm(arrStreak);
       const NP      = norm(arrPair);
-      const NDevPos = norm(arrDev.map(v => Math.max(0,v)));
-      const NDevNeg = norm(arrDev.map(v => Math.max(0,-v)));
+      const NDevPos = norm(arrDevPos);
+      const NDevNeg = norm(arrDevNeg);
       const NFollow = norm(arrFollow);
-      const NRatio  = norm(arrRatio);
-
-      // Kandidaten-Arrays
+      const NGap    = norm(arrGap, false);
+      // Berechne Score pro Zahl für Systeme A–D
+      let idx=0;
       const candHot  = [];
       const candCold = [];
       const candPat  = [];
-      const candDue  = [];
-
-      let idx = 0;
-      for(let z = A; z <= B; z++){
-        const sHot =
-          1.1*NF[idx]      +  // Gesamtfrequenz
-          1.0*NR[idx]      +  // Häufigkeit im jüngsten Fenster
-          0.6*NDevPos[idx] +  // positive Deviation (Hot)
-          0.6*NP[idx]      +  // starke Paare
-          0.4*NS[idx]      +  // Streaks
-          0.3*NFollow[idx] +  // Follow-Pattern
-          0.4*NRecInv[idx];   // seit kurzem aktiv
-
-        const sCold =
-          0.5*NF[idx]       +
-          0.9*NDevNeg[idx]  + // starke Unterrepräsentation
-          0.6*NRecInv[idx]  +
-          0.4*NFollow[idx]  +
-          0.2*NP[idx];
-
-        const sPat =
-          1.2*NFollow[idx] +
-          0.7*NP[idx]      +
-          0.5*NR[idx]      +
-          0.4*NS[idx]      +
-          0.3*NDevPos[idx];
-
-        const sDue =
-          1.2*NRatio[idx]  + // Verhältnis aktueller Gap zu typischem Gap
-          0.8*NDevNeg[idx] + // bevorzugt unterrepräsentierte Zahlen
-          0.5*NRecInv[idx];  // lange nicht gesehen
-
-        tempStats[z].scoreHot     = sHot;
-        tempStats[z].scoreCold    = sCold;
-        tempStats[z].scorePattern = sPat;
-        tempStats[z].scoreDue     = sDue;
-
+      const candGap  = [];
+      for(let z=A; z<=B; z++){
+        const sHot = 1.1*NF[idx] + 1.0*NR[idx] + 0.6*NDevPos[idx] + 0.6*NP[idx] + 0.4*NS[idx] + 0.3*NFollow[idx] + 0.4*NRecInv[idx];
+        const sCold= 0.5*NF[idx] + 0.9*NDevNeg[idx] + 0.6*NRecInv[idx] + 0.4*NFollow[idx] + 0.2*NP[idx];
+        const sPat = 1.2*NFollow[idx] + 0.7*NP[idx] + 0.5*NR[idx] + 0.4*NS[idx] + 0.3*NDevPos[idx];
+        const sGap = 1.3*NGap[idx] + 0.6*NF[idx] + 0.5*NR[idx] + 0.3*NFollow[idx];
+        tempStats[z].scoreHot    = sHot;
+        tempStats[z].scoreCold   = sCold;
+        tempStats[z].scorePat    = sPat;
+        tempStats[z].scoreGap    = sGap;
         candHot.push({z,score:sHot});
         candCold.push({z,score:sCold});
         candPat.push({z,score:sPat});
-        candDue.push({z,score:sDue});
-
+        candGap.push({z,score:sGap});
         idx++;
       }
-
-      candHot.sort((a,b)=>b.score-a.score);
-      candCold.sort((a,b)=>b.score-a.score);
-      candPat.sort((a,b)=>b.score-a.score);
-      candDue.sort((a,b)=>b.score-a.score);
-
-      const pickTop20 = arr => arr.slice(0,20).map(x=>x.z);
-
-      const setHot = {
-        id: 'hotdev',
-        label: 'System A – Hot/Deviation',
-        description: 'Betont häufige & positiv abweichende Zahlen (Hot-/Deviation-Ansatz).',
-        type: 'hot',
-        nums: pickTop20(candHot)
-      };
-      const setCold = {
-        id: 'coldrev',
-        label: 'System B – Cold/Rebound',
-        description: 'Betont unterrepräsentierte „Cold“-Zahlen mit Rebound-Idee.',
-        type: 'cold',
-        nums: pickTop20(candCold)
-      };
-      const setPat = {
-        id: 'pattern',
-        label: 'System C – Pattern/Next-Draw',
-        description: 'Betont Follow-Pattern nach ähnlichen Situationen zur letzten Ziehung.',
-        type: 'pattern',
-        nums: pickTop20(candPat)
-      };
-      const setDue = {
-        id: 'gapdue',
-        label: 'System D – Gap-Rückkehr',
-        description: 'Betont Zahlen mit langen Pausen & typischem Abstandsmuster (überfällig).',
-        type: 'gap',
-        nums: pickTop20(candDue)
-      };
-
-      g_scanData      = { statsNumber, tempStats, overlapHist, freqRecent, followFreq };
-      g_candidateSets = [setHot, setCold, setPat, setDue];
-      g_variantsBySet = {};
-
+      // Sortiere Kandidaten nach Score
+      candHot.sort((a,b) => b.score - a.score);
+      candCold.sort((a,b) => b.score - a.score);
+      candPat.sort((a,b) => b.score - a.score);
+      candGap.sort((a,b) => b.score - a.score);
+      // Helper zum Auswählen von Top 20
+      const pickTop20 = arr => arr.slice(0,20).map(x => x.z);
+      // System A–D Sets
+      const setA = {id:'hotdev',    label:'System A – Hot/Deviation', description:'Betont häufige & positiv abweichende Zahlen.', type:'hot',    nums:pickTop20(candHot)};
+      const setB = {id:'coldrev',   label:'System B – Cold/Rebound',  description:'Betont unterrepräsentierte „Cold“-Zahlen mit Rebound‑Idee.', type:'cold',   nums:pickTop20(candCold)};
+      const setC = {id:'pattern',   label:'System C – Pattern/Next‑Draw', description:'Betont Follow‑Pattern nach ähnlichen Situationen zur letzten Ziehung.', type:'pattern', nums:pickTop20(candPat)};
+      const setD = {id:'gap',       label:'System D – Gap‑Rückkehr', description:'Betont Zahlen mit langen Pausen & typischem Abstands‑Muster (überfällig).', type:'gap', nums:pickTop20(candGap)};
+      // System E: Odd/Even Balance (10 Odd + 10 Even)
+      const oddsSorted  = [];
+      const evensSorted = [];
+      for(const item of candHot){ if(item.z % 2 === 1) oddsSorted.push(item); else evensSorted.push(item); }
+      oddsSorted.sort((a,b) => b.score - a.score);
+      evensSorted.sort((a,b) => b.score - a.score);
+      const oddsTop  = oddsSorted.slice(0,10).map(x=>x.z);
+      const evensTop = evensSorted.slice(0,10).map(x=>x.z);
+      const numsE = oddsTop.concat(evensTop).slice(0,20);
+      const setE = {id:'oddeven', label:'System E – Odd/Even Balance', description:'Ausgewogene Kombination aus 10 geraden und 10 ungeraden Zahlen.', type:'oddeven', nums: numsE};
+      // System F: High/Low Balance (untere Hälfte/obere Hälfte)
+      const mid = Math.floor((A + B) / 2);
+      const lowSorted  = [];
+      const highSorted = [];
+      for(const item of candHot){ if(item.z <= mid) lowSorted.push(item); else highSorted.push(item); }
+      lowSorted.sort((a,b) => b.score - a.score);
+      highSorted.sort((a,b) => b.score - a.score);
+      const lowTop  = lowSorted.slice(0,10).map(x=>x.z);
+      const highTop = highSorted.slice(0,10).map(x=>x.z);
+      const numsF = lowTop.concat(highTop).slice(0,20);
+      const setF = {id:'highlow', label:'System F – High/Low Balance', description:'Ausgewogene Kombination aus niedrigen und hohen Zahlen.', type:'highlow', nums: numsF};
+      // System G: Quadrant‑Cluster (Segment mit höchster Summe aus ScoreHot)
+      // Segmentiere Bereich in 4 gleich große Abschnitte
+      const segSize = Math.floor((B - A + 1) / 4);
+      const segments = [];
+      for(let s=0; s<4; s++){
+        const segStart = A + s * segSize;
+        const segEnd   = (s === 3) ? B : (segStart + segSize - 1);
+        let sumScore = 0;
+        for(const item of candHot){ if(item.z >= segStart && item.z <= segEnd) sumScore += item.score; }
+        segments.push({start:segStart, end:segEnd, sumScore});
+      }
+      segments.sort((a,b) => b.sumScore - a.sumScore);
+      const bestSeg = segments[0];
+      const segCandidates = candHot.filter(item => item.z >= bestSeg.start && item.z <= bestSeg.end);
+      const numsG = segCandidates.slice(0,20).map(x=>x.z);
+      const setG = {id:'quadrant', label:'System G – Quadrant‑Cluster', description:'Konzentriert sich auf das aktivste Viertel des Bereichs.', type:'quadrant', nums: numsG};
+      // Sammle alle Sets in ursprünglicher Reihenfolge
+      let sets = [setA, setB, setC, setD, setE, setF, setG];
+      // Stelle sicher, dass jede Zahl nur in einem Satz enthalten ist (Deduplicate)
+      sets = deduplicateSets(sets, {hot: candHot.map(x=>x.z), cold: candCold.map(x=>x.z), pattern: candPat.map(x=>x.z), gap: candGap.map(x=>x.z), oddeven: numsE, highlow: numsF, quadrant: numsG});
+      g_candidateSets = sets;
+      // UI aktualisieren
       $('#scanProg').value = 1;
       $('#scanProg').style.display = 'none';
-      txt($('#scanStatus'), 'Scan abgeschlossen. 4 Kandidatensätze berechnet.');
-
+      txt($('#scanStatus'), 'Scan abgeschlossen. ' + sets.length + ' Kandidatensätze berechnet.');
       renderCandidateSets();
     }
-
+    // Deduplicate: entfernt Zahlen, die bereits in vorangehenden Sätzen vorkommen, und füllt mit weiteren Zahlen aus sortierter Liste
+    function deduplicateSets(setList, allSorted){
+      const used = new Set();
+      const result = [];
+      for(const s of setList){
+        const orig = allSorted[s.id] || s.nums.slice();
+        const unique = [];
+        for(const z of s.nums){
+          if(!used.has(z)) { unique.push(z); used.add(z); }
+        }
+        // Falls weniger als 20, aus orig weitere Zahlen ergänzen
+        let idx = 0;
+        while(unique.length < 20 && idx < orig.length){
+          const z = orig[idx++];
+          if(!used.has(z)) { unique.push(z); used.add(z); }
+        }
+        s.nums = unique;
+        result.push(s);
+      }
+      return result;
+    }
+    // Kandidatensätze rendern
     function renderCandidateSets(){
-      const sec  = $('#candidatesSection');
+      const sec = $('#candidatesSection');
       const wrap = $('#candGroups');
       wrap.innerHTML = '';
-      if(!g_candidateSets.length){
-        sec.style.display = 'none';
-        return;
-      }
+      if(!g_candidateSets || !g_candidateSets.length){ sec.style.display = 'none'; return; }
       sec.style.display = '';
-
       for(const set of g_candidateSets){
         const box = el('div','top-group');
-
         const header = el('div','top-header');
-        const left   = el('div');
-        const title  = el('div');
+        const left = el('div');
+        const title = el('div');
         title.innerHTML = `<strong>${set.label}</strong>`;
-        const desc   = el('div','hint');
+        const desc  = el('div','hint');
         desc.textContent = set.description;
         left.appendChild(title);
         left.appendChild(desc);
-
-        const right  = el('label','hint');
+        const right = el('label','hint');
         right.style.display = 'inline-flex';
         right.style.alignItems = 'center';
         right.style.gap = '4px';
         const cb = el('input');
-        cb.type  = 'checkbox';
+        cb.type = 'checkbox';
         cb.checked = true;
         cb.dataset.setId = set.id;
         right.appendChild(cb);
         right.appendChild(document.createTextNode('für Varianten nutzen'));
         header.appendChild(left);
         header.appendChild(right);
-
         const list = el('div','top-list');
-        set.nums.forEach((z,idx)=>{
+        set.nums.forEach(num => {
           const chip = el('span','top-number');
-          chip.textContent = z;
+          chip.textContent = num;
           list.appendChild(chip);
         });
-
         box.appendChild(header);
         box.appendChild(list);
         wrap.appendChild(box);
       }
     }
-
-    function getSelectedCandidateSets(){
+    // Helper: welche Sets sind ausgewählt
+    function getSelectedSets(){
       const selected = [];
-      const checkboxes = document.querySelectorAll('input[type="checkbox"][data-set-id]');
+      const cbList = document.querySelectorAll('input[type="checkbox"][data-set-id]');
       const byId = new Map(g_candidateSets.map(s => [s.id,s]));
-      checkboxes.forEach(cb=>{
-        if(cb.checked){
-          const set = byId.get(cb.dataset.setId);
-          if(set) selected.push(set);
-        }
-      });
+      cbList.forEach(cb => { if(cb.checked){ const s = byId.get(cb.dataset.setId); if(s) selected.push(s); } });
       return selected;
     }
-
-    // ==== VARIANTEN ERZEUGEN ====
-    $('#genBtn').addEventListener('click', () => {
-      try { generateVariants(); } catch(e){ console.error(e); }
-    });
-
+    // Varianten erzeugen
+    $('#genBtn').addEventListener('click', () => { try { generateVariants(); } catch(e){ console.error(e); } });
     $('#clearVarBtn').addEventListener('click', () => {
       g_variantsBySet = {};
       $('#varBlocks').innerHTML = '';
-      txt($('#varStatus'), 'Varianten gelöscht.');
+      txt($('#varStatus'),'Varianten gelöscht.');
       $('#compareResults').innerHTML = '';
       $('#compareStatus').textContent = '';
     });
-
     function generateVariants(){
-      if(!g_candidateSets.length){
-        txt($('#varStatus'), 'Bitte zuerst scannen, um Kandidaten zu erhalten.');
-        return;
-      }
-      const selectedSets = getSelectedCandidateSets();
-      if(!selectedSets.length){
-        txt($('#varStatus'), 'Bitte mindestens einen Kandidatensatz auswählen.');
-        return;
-      }
-
-      const S     = parseInt($('#kenoType').value,10);
-      const want  = Math.max(1, parseInt($('#numVariants').value,10) || 1);
+      if(!g_candidateSets || !g_candidateSets.length){ txt($('#varStatus'),'Bitte zuerst scannen.'); return; }
+      const selectedSets = getSelectedSets();
+      if(!selectedSets.length){ txt($('#varStatus'),'Bitte mindestens einen Satz auswählen.'); return; }
+      const S = parseInt($('#kenoType').value,10);
+      const want = Math.max(1, parseInt($('#numVariants').value,10) || 1);
       const ovLim = Math.max(0, parseInt($('#overlapLimit').value,10) || 0);
-
-      if(!S || S < 1){
-        txt($('#varStatus'), 'Ungültiger Keno-Typ.');
-        return;
-      }
-
+      if(!S || S < 1){ txt($('#varStatus'),'Ungültiger Keno‑Typ.'); return; }
       g_variantsBySet = {};
-      const blocksWrap = $('#varBlocks');
-      blocksWrap.innerHTML = '';
-
-      // Hilfsfunktionen
-      const hasLongRun = (arr) => {
-        let run = 1;
+      const blockWrap = $('#varBlocks');
+      blockWrap.innerHTML = '';
+      const hasLongRun = arr => {
+        let run=1;
         for(let i=1; i<arr.length; i++){
-          if(arr[i] === arr[i-1] + 1){
-            run++;
-            if(run >= 4) return true;
-          }else{
-            run = 1;
-          }
+          if(arr[i] === arr[i-1]+1){ run++; if(run>=4) return true; }
+          else run=1;
         }
         return false;
       };
       const computeOverlap = (a,b) => {
-        let ov=0, i=0, j=0;
-        while(i<a.length && j<b.length){
-          if(a[i] === b[j]){ ov++; i++; j++; }
-          else if(a[i] < b[j]) i++; else j++;
-        }
+        let ov=0,i=0,j=0;
+        while(i<a.length && j<b.length){ if(a[i]===b[j]){ ov++; i++; j++; } else if(a[i]<b[j]) i++; else j++; }
         return ov;
       };
-
       for(const set of selectedSets){
         const pool = set.nums.slice();
         const results = [];
-        const seen   = new Set();
-
-        let attempts = 0;
-        const maxAttempts = want * 400;
-
+        const seen = new Set();
+        let attempts=0;
+        const maxAttempts = want * 500;
         while(results.length < want && attempts < maxAttempts){
           attempts++;
-          // Mische Pool und wähle S
-          const shuffled = pool.slice().sort(()=>Math.random()-0.5);
+          const shuffled = pool.slice().sort(() => Math.random() - 0.5);
           const variant  = shuffled.slice(0,S).sort((a,b)=>a-b);
-
           if(hasLongRun(variant)) continue;
           const key = variant.join(',');
           if(seen.has(key)) continue;
-
-          if(ovLim > 0){
-            let ok = true;
-            for(const v of results){
-              if(computeOverlap(v.numbers, variant) > ovLim){ ok=false; break; }
-            }
-            if(!ok) continue;
-          }
-
+          if(ovLim > 0){ let ok=true; for(const v of results){ if(computeOverlap(v.numbers, variant) > ovLim){ ok=false; break; } } if(!ok) continue; }
           results.push({numbers:variant, hist:null});
           seen.add(key);
         }
-
         g_variantsBySet[set.id] = results;
-
-        // UI-Block
         const block = el('div','variants-block');
         const head  = el('div','flex-between');
-        const tag   = el('div');
-        tag.innerHTML = `<strong>${set.label}</strong>`;
-        const meta  = el('div','hint');
-        meta.textContent = `${results.length} Varianten generiert (Basis: 20 Zahlen).`;
-        head.appendChild(tag);
-        head.appendChild(meta);
-
+        const t1    = el('div'); t1.innerHTML = `<strong>${set.label}</strong>`;
+        const t2    = el('div','hint'); t2.textContent = `${results.length} Varianten generiert.`;
+        head.appendChild(t1); head.appendChild(t2);
+        block.appendChild(head);
         const list = el('div','mt-2');
-        results.forEach((v,idx)=>{
+        results.forEach((v,idx) => {
           const row = el('div','variant-item');
-          row.textContent = `#${String(idx+1).padStart(2,'0')}  ` + v.numbers.join(' ');
+          row.textContent = `#${String(idx+1).padStart(2,'0')}  ${v.numbers.join(' ')}`;
           list.appendChild(row);
         });
-
-        block.appendChild(head);
         block.appendChild(list);
-        blocksWrap.appendChild(block);
+        blockWrap.appendChild(block);
       }
-
-      const totalVar = Object.values(g_variantsBySet).reduce((s,arr)=>s+arr.length,0);
-      txt($('#varStatus'), `${totalVar} Varianten über ${selectedSets.length} Kandidatensätze erzeugt.`);
+      const totalVar = Object.values(g_variantsBySet).reduce((s,arr) => s + arr.length, 0);
+      txt($('#varStatus'), `${totalVar} Varianten über ${selectedSets.length} Sätze erzeugt.`);
       $('#compareResults').innerHTML = '';
       $('#compareStatus').textContent = '';
     }
-
-    // ==== VARIANTEN vs ARCHIV VERGLEICH ====
+    // Vergleich mit Archiv
     $('#compareBtn').addEventListener('click', () => {
-      compareVariantsWithArchive().catch(console.error);
+      compareVariants().catch(err => console.error(err));
     });
-
-    async function compareVariantsWithArchive(){
-      if(!g_draws || !g_draws.length){
-        txt($('#compareStatus'),'Bitte zuerst ein Archiv laden.');
-        return;
-      }
+    async function compareVariants(){
+      if(!g_draws || !g_draws.length){ txt($('#compareStatus'),'Bitte zuerst ein Archiv laden.'); return; }
       const S = parseInt($('#kenoType').value,10);
-      if(!S || S < 1){
-        txt($('#compareStatus'),'Ungültiger Keno-Typ.');
-        return;
-      }
-
-      const sets = Object.keys(g_variantsBySet);
-      if(!sets.length){
-        txt($('#compareStatus'),'Bitte zuerst Varianten erzeugen.');
-        return;
-      }
-      const totalVariants = Object.values(g_variantsBySet).reduce((s,arr)=>s+arr.length,0);
-      if(!totalVariants){
-        txt($('#compareStatus'),'Keine Varianten zum Vergleichen vorhanden.');
-        return;
-      }
-
+      if(!S || S < 1){ txt($('#compareStatus'),'Ungültiger Keno‑Typ.'); return; }
+      const setIds = Object.keys(g_variantsBySet);
+      if(!setIds.length){ txt($('#compareStatus'),'Bitte zuerst Varianten erzeugen.'); return; }
+      const totalVariants = Object.values(g_variantsBySet).reduce((s,arr) => s + arr.length, 0);
+      if(!totalVariants){ txt($('#compareStatus'),'Keine Varianten zum Vergleichen.'); return; }
       $('#compareProg').style.display = '';
       $('#compareProg').value = 0;
-      txt($('#compareStatus'),'Vergleiche Varianten mit Archiv …');
-
+      txt($('#compareStatus'), 'Vergleiche Varianten mit Archiv …');
       const totalDraws = g_draws.length;
       let processed = 0;
-
-      // Pre-Sort draws für schnelleren Overlap
+      // Pre‑Sort draws
       const sortedDraws = g_draws.map(dr => dr.slice().sort((a,b)=>a-b));
-
-      for(const setId of sets){
+      for(const setId of setIds){
         const arr = g_variantsBySet[setId];
         for(const v of arr){
           const hist = {};
-          for(let k=0; k<=S; k++) hist[k]=0;
-
+          for(let k=0; k<=S; k++) hist[k] = 0;
           const variant = v.numbers;
-          const lenV    = variant.length;
-
+          const lenV = variant.length;
           for(let i=0; i<totalDraws; i++){
             const d = sortedDraws[i];
-            let ov=0, p=0,q=0;
-            while(p<lenV && q<d.length){
-              if(variant[p] === d[q]){ ov++; p++; q++; }
-              else if(variant[p]<d[q]) p++; else q++;
-            }
-            if(ov> S) ov=S;
-            hist[ov] = (hist[ov]||0)+1;
+            let ov=0,p=0,q=0;
+            while(p<lenV && q<d.length){ if(variant[p] === d[q]){ ov++; p++; q++; } else if(variant[p] < d[q]) p++; else q++; }
+            if(ov > S) ov = S;
+            hist[ov] = (hist[ov] || 0) + 1;
           }
           v.hist = hist;
           processed++;
-          if(processed % 5 === 0){
-            $('#compareProg').value = processed / totalVariants;
-            await new Promise(r=>setTimeout(r,0));
-          }
+          if(processed % 5 === 0){ $('#compareProg').value = processed / totalVariants; await new Promise(r=>setTimeout(r,0)); }
         }
       }
-
       $('#compareProg').value = 1;
       $('#compareProg').style.display = 'none';
       txt($('#compareStatus'),'Vergleich abgeschlossen.');
       renderCompareResults(S);
     }
-
     function renderCompareResults(S){
       const wrap = $('#compareResults');
       wrap.innerHTML = '';
-
       const sets = g_candidateSets.filter(s => g_variantsBySet[s.id] && g_variantsBySet[s.id].length);
-
       for(const set of sets){
-          const arr = g_variantsBySet[set.id];
-          if(!arr.length) continue;
-          const box = el('div','variants-block');
-          const head = el('div','flex-between');
-          const t1   = el('div');
-          t1.innerHTML = `<strong>${set.label}</strong>`;
-          const t2   = el('div','hint');
-          t2.textContent = `${arr.length} Varianten · Treffer 0…${S} über ${g_draws.length} Ziehungen`;
-          head.appendChild(t1); head.appendChild(t2);
-          box.appendChild(head);
-
-          const table = el('table','compare-table');
-          const thead = el('thead');
-          const trh   = el('tr');
-          trh.appendChild(th('Var.'));
-          for(let k=S; k>=0; k--){
-            trh.appendChild(th(`${k}/${S}`));
-          }
-          thead.appendChild(trh);
-          table.appendChild(thead);
-
-          const tbody = el('tbody');
-          arr.forEach((v,idx)=>{
-            const tr = el('tr');
-            tr.appendChild(td('#'+String(idx+1).padStart(2,'0')));
-            for(let k=S; k>=0; k--){
-              const val = (v.hist && v.hist[k]) || 0;
-              tr.appendChild(td(val.toString()));
-            }
-            tbody.appendChild(tr);
-          });
-          table.appendChild(tbody);
-          box.appendChild(table);
-          wrap.appendChild(box);
+        const arr = g_variantsBySet[set.id];
+        if(!arr.length) continue;
+        const box = el('div','variants-block');
+        const head = el('div','flex-between');
+        const t1   = el('div'); t1.innerHTML = `<strong>${set.label}</strong>`;
+        const t2   = el('div','hint'); t2.textContent = `${arr.length} Varianten · Treffer 0…${S} über ${g_draws.length} Ziehungen`;
+        head.appendChild(t1); head.appendChild(t2);
+        box.appendChild(head);
+        const table = el('table','compare-table');
+        const thead = el('thead');
+        const trh = el('tr');
+        trh.appendChild(th('Var.'));
+        for(let k=S; k>=0; k--){ trh.appendChild(th(`${k}/${S}`)); }
+        thead.appendChild(trh);
+        table.appendChild(thead);
+        const tbody = el('tbody');
+        arr.forEach((v,idx)=>{
+          const tr = el('tr');
+          tr.appendChild(td('#'+String(idx+1).padStart(2,'0')));
+          for(let k=S; k>=0; k--){ const val = (v.hist && v.hist[k]) || 0; tr.appendChild(td(val.toString())); }
+          tbody.appendChild(tr);
+        });
+        table.appendChild(tbody);
+        box.appendChild(table);
+        wrap.appendChild(box);
       }
-
       function th(text){ const x = document.createElement('th'); x.textContent = text; return x; }
       function td(text){ const x = document.createElement('td'); x.textContent = text; return x; }
     }
-
-    // Hinweis: Self-Test oder Validierungsfunktionen könnten hier hinzugefügt werden. Wegen
-    // Performance und Umfang sind sie nicht standardmäßig aktiv.
-
   })();
   </script>
 </body>
