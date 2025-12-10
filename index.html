@@ -375,6 +375,13 @@
             </div>
             <div id="candGroups"></div>
           </div>
+          <div id="summarySection" style="display:none;" class="mt-3">
+            <h3>Analyse‑Übersicht</h3>
+            <div class="hint">
+              Kurze Zusammenfassung der wichtigsten Kennzahlen aus dem Archiv. Diese Statistiken dienen als Orientierungshilfe und ersetzen nicht die Heuristiken.
+            </div>
+            <div id="summaryContent" class="mt-2"></div>
+          </div>
         </div>
       </div>
       <!-- Rechte Seite: Varianten & Vergleich -->
@@ -421,6 +428,7 @@
     let g_draws = [];       // Liste der Ziehungen (Array von Arrays)
     let g_drawSize = 0;     // typischerweise 20 (wird dynamisch erkannt)
     let g_candidateSets = [];// Liste der Strategien mit Zahlen
+    let g_scanSummary = null; // Zusammenfassung (Top‑Zahlen, Paare, Overlaps)
     let g_variantsBySet = {}; // set.id -> Array von Varianten {numbers:[], hist:null}
 
     // Laden aus LocalStorage bei Start
@@ -640,6 +648,7 @@
     function resetAnalysisState(){
       g_candidateSets = [];
       g_variantsBySet = {};
+    g_scanSummary = null;
       $('#scanStatus').textContent = '';
       $('#scanStatus').classList.remove('error');
       $('#candidatesSection').style.display = 'none';
@@ -648,6 +657,10 @@
       $('#varStatus').textContent = '';
       $('#compareResults').innerHTML = '';
       $('#compareStatus').textContent = '';
+  $('#summarySection').style.display = 'none';
+  $('#summaryContent').innerHTML = '';
+    $('#summarySection').style.display = 'none';
+    $('#summaryContent').innerHTML = '';
     }
 
     // SCAN button
@@ -869,8 +882,69 @@
       candCold.sort((a,b) => b.score - a.score);
       candPat.sort((a,b) => b.score - a.score);
       candGap.sort((a,b) => b.score - a.score);
-      // Helper zum Auswählen von Top 20
+      // Helper zum Auswählen von Top 20
       const pickTop20 = arr => arr.slice(0,20).map(x => x.z);
+
+      /*
+        * Sanitizing der Kandidatenlisten:
+        *
+        * KENO‑Ziehungen sind zufällig【820644395070059†L224-L243】, dennoch führt das reine
+        * Sortieren nach Scores mitunter zu trivialen, deterministischen Sätzen wie
+        * 1‑2‑3‑…‑20. Solche arithmetischen Folgen sind weder realistisch noch
+        * wünschenswert. Diese Funktion bereinigt eine Liste von Zahlen so,
+        * dass keine Serie von mehr als MAX_RUN aufeinanderfolgenden Zahlen
+        * entsteht. Ist die ursprüngliche Liste kürzer als 20, oder werden
+        * Nummern aufgrund der Run‑Regel entfernt, so wird aus einer
+        * Fallback‑Liste (ebenfalls nach Score sortiert) aufgefüllt, bis
+        * wieder 20 Werte vorliegen. Zur Sicherheit wird am Ende bei Bedarf
+        * komplettiert, falls immer noch zu wenige Zahlen vorhanden sind.
+        */
+      const MAX_RUN = 3;
+      function sanitizeCandidateList(nums, fallbackList) {
+        let res = [];
+        const used = new Set();
+        // Prüft, ob das Hinzufügen von num eine zu lange Folge erzeugen würde
+        function createsLongRun(arr, num){
+          const tmp = arr.concat([num]).sort((a,b)=>a-b);
+          for(let i=0; i<tmp.length; i++){
+            let run = 1;
+            for(let j=i+1; j<tmp.length; j++){
+              if(tmp[j] === tmp[j-1] + 1){
+                run++;
+                if(run > MAX_RUN) return true;
+              } else {
+                break;
+              }
+            }
+          }
+          return false;
+        }
+        // zuerst übernommene Zahlen testen
+        for(const n of nums){
+          if(res.length >= 20) break;
+          if(used.has(n)) continue;
+          if(createsLongRun(res, n)) continue;
+          res.push(n);
+          used.add(n);
+        }
+        // Fallback-Liste in flacher Form (Zahlen extrahieren)
+        const fb = fallbackList.map(x => (typeof x === 'number' ? x : x.z));
+        for(const n of fb){
+          if(res.length >= 20) break;
+          if(used.has(n)) continue;
+          if(createsLongRun(res, n)) continue;
+          res.push(n);
+          used.add(n);
+        }
+        // Als letzte Instanz auffüllen (ohne Run-Prüfung), falls noch Plätze frei sind
+        if(res.length < 20) {
+          for(const n of fb){
+            if(res.length >= 20) break;
+            if(!used.has(n)) { res.push(n); used.add(n); }
+          }
+        }
+        return res.slice(0,20);
+      }
       
       // System A–D Sets
       // IDs der Sets entsprechen ihren Typen, damit spätere Zuordnungen korrekt funktionieren.  
@@ -981,9 +1055,31 @@
         type: 'quadrant',
         nums: numsG
       };
-      // Füge alle Kandidatensätze zusammen. Doppelungen sind erlaubt, da
-      // jede Strategie unabhängig arbeitet.
+      // Bereinige jede Strategieliste, um triviale Folgen (z.B. 1–20) und
+      // zu lange Serien zu vermeiden. Für die Systeme A–D nutzen wir
+      // jeweils die zugehörige Score‑Liste als Fallback. Für E–G
+      // verwenden wir candHot, da diese Liste die umfassendste Auswahl
+      // bietet. Anschließend fügen wir alle Sets zusammen. Doppelungen
+      // zwischen den Systemen sind erlaubt, da jede Strategie unabhängig
+      // arbeitet.
+      setA.nums = sanitizeCandidateList(setA.nums, candHot);
+      setB.nums = sanitizeCandidateList(setB.nums, candCold);
+      setC.nums = sanitizeCandidateList(setC.nums, candPat);
+      setD.nums = sanitizeCandidateList(setD.nums, candGap);
+      setE.nums = sanitizeCandidateList(setE.nums, candHot);
+      setF.nums = sanitizeCandidateList(setF.nums, candHot);
+      setG.nums = sanitizeCandidateList(setG.nums, candHot);
       g_candidateSets = [setA, setB, setC, setD, setE, setF, setG];
+      // Erzeuge eine Zusammenfassung der wichtigsten Statistiken (Top‑Zahlen und Paare)
+      // für die Anzeige im Analyse‑Bereich. Wir sortieren nach Häufigkeit.
+      const topNums = Object.entries(statsNumber)
+        .sort((a,b) => b[1].freq - a[1].freq)
+        .slice(0, 10);
+      const topPairs = Array.from(pairCounts.entries())
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 5);
+      g_scanSummary = { topNums, topPairs };
+      renderSummary();
       // UI aktualisieren
       $('#scanProg').value = 1;
       $('#scanProg').style.display = 'none';
@@ -1207,6 +1303,44 @@
       }
       function th(text){ const x = document.createElement('th'); x.textContent = text; return x; }
       function td(text){ const x = document.createElement('td'); x.textContent = text; return x; }
+    }
+
+    // Analysestatistik anzeigen
+    function renderSummary(){
+      const sec = $('#summarySection');
+      const cont = $('#summaryContent');
+      if(!g_scanSummary){
+        sec.style.display = 'none';
+        return;
+      }
+      sec.style.display = '';
+      cont.innerHTML = '';
+      // Top‑Zahlen
+      const topDiv = el('div','mt-2');
+      const title1 = el('div');
+      title1.innerHTML = '<strong>Top 10 Zahlen (Häufigkeit)</strong>';
+      topDiv.appendChild(title1);
+      const list1 = el('div','top-list');
+      g_scanSummary.topNums.forEach(([num, obj]) => {
+        const chip = el('span','top-number');
+        chip.textContent = num + ' (' + obj.freq + ')';
+        list1.appendChild(chip);
+      });
+      topDiv.appendChild(list1);
+      cont.appendChild(topDiv);
+      // Top‑Paare
+      const pairDiv = el('div','mt-2');
+      const title2 = el('div');
+      title2.innerHTML = '<strong>Top 5 Paare (gemeinsame Ziehungen)</strong>';
+      pairDiv.appendChild(title2);
+      const list2 = el('div','top-list');
+      g_scanSummary.topPairs.forEach(([key, count]) => {
+        const chip = el('span','top-number');
+        chip.textContent = key + ' (' + count + ')';
+        list2.appendChild(chip);
+      });
+      pairDiv.appendChild(list2);
+      cont.appendChild(pairDiv);
     }
   })();
   </script>
